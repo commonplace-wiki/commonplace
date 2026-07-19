@@ -1,20 +1,21 @@
 # Commonplace
 
-A wiki for [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) bundles: every page is a markdown file with YAML frontmatter in your GitHub repository, and every save is a commit. There is no database; every read goes through the GitHub API with your own credentials.
+An open-source wiki and Confluence alternative.
+
+Idea: Keep your knowledge in a Git repository, following [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md). Commonplace acts as a nice UI.
+
 
 ## Features
 
-- **GitHub sign-in**: GitHub App or OAuth web flow (or a personal access token as fallback). The app never sees credentials beyond the token, which is kept in an encrypted, httpOnly session cookie; expiring GitHub App tokens are refreshed automatically.
-- **Repository picker**: choose any repo, branch, and optional subdirectory as the OKF bundle root.
-- **Public wikis**: when the configured repository is public, visitors can read every page without signing in. Edit actions appear after they sign in.
-- **Viewer**: renders concept documents with their frontmatter (type badge, tags, resource URI, timestamp), resolves bundle-relative links (`/tables/customers.md`) and relative links between pages, and serves images and attachments from the repo through your token.
-- **Directory pages**: renders `index.md` when present, otherwise synthesizes a listing, as the spec allows.
-- **Editor**: structured frontmatter form (`type`, `title`, `description`, `resource`, `tags`) with unknown producer extension keys preserved round-trip, a markdown body editor with live preview, and custom commit messages. `timestamp` is set automatically on save.
-- **Formatting toolbar**: bold, italic, strikethrough, headings, quotes, bullet/numbered/task lists, inline code and code blocks, links, wiki page links, horizontal rules, and a table generator (pick rows and columns). Shortcuts: Cmd/Ctrl+B, +I, +K.
-- **Image and attachment upload**: drag & drop, paste, or pick files in the editor. Files are committed to an `assets/` folder next to the page (5 MB max, name collisions get a suffix) and inserted as bundle-absolute links; the viewer serves them through your token, so this works for private repos.
-- **OKF conformance**: `type` is required for concept documents; `index.md` and `log.md` are treated as reserved files without frontmatter; page creations, updates, and deletions are recorded in the bundle root `log.md` (newest-first, grouped by date) unless you opt out per save.
+- **Beautiful UI**: A familiar look and feel, but less bloated.
+- **Just a frontend**: Commonplace is a stateless frontend. Everything is persisted in your Git repository.
+- **GitHub permissions**: Using the GitHub login and permission model, you control who has read and write access to the wiki. Support for public and private repos.
+- **Open Knowledge Format**: Google's universal format to collect knowledge and relationships.
+- **Markdown Editor**: A nice editor with just the right feature set. Good support for code snippets, drag & drop, screenshots and rich formatting. Files are committed to an `assets/` folder next to the page.
+- **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents.
+- **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
-## Setup
+## Local Setup
 
 ```bash
 npm install
@@ -43,6 +44,30 @@ npm run dev
 ```
 
 Open http://localhost:3000 and sign in. If no `WIKI_REPO` is pinned, pick the repository that holds (or should hold) your knowledge bundle. Start writing.
+
+## Docker
+
+```bash
+docker run -p 3000:3000 \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
+  -e WIKI_REPO=https://github.com/owner/repo \
+  -e GITHUB_CLIENT_ID=... \
+  -e GITHUB_CLIENT_SECRET=... \
+  commonplacewiki/commonplace
+```
+
+All configuration is passed as environment variables at runtime; nothing is baked into the image. To build the image yourself: `docker build -t commonplace .`
+
+## MCP server (AI agents)
+
+The deployment exposes an MCP server (Streamable HTTP) at `/api/mcp` with three tools: `search_pages` (content, title, tag, and type search), `get_page` (frontmatter, body, and the blob sha), and `save_page` (create or update as a git commit, with required `type`, automatic `timestamp`, a `log.md` entry, and sha-based conflict detection). It requires a pinned `WIKI_REPO`.
+
+Authenticate with a GitHub token in the `Authorization` header; reads work without a token when the wiki repository is public. For Claude Code:
+
+```bash
+claude mcp add --transport http wiki http://localhost:3000/api/mcp \
+  --header "Authorization: Bearer github_pat_…"
+```
 
 ## How content is stored
 

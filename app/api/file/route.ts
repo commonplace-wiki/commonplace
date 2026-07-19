@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
 import { deleteFile, getFile, GitHubError, putFile } from '@/lib/github'
+import { updateLog } from '@/lib/log'
 import {
-  appendLogEntry,
   conceptTitle,
   isReservedName,
   parseConcept,
   serializeConcept,
   type Frontmatter,
-  type LogAction,
 } from '@/lib/okf'
 import { getSession } from '@/lib/session'
 
@@ -36,36 +35,6 @@ function validateMarkdownPath(config: RepoConfig, bundlePath: unknown): string {
   }
   fullPath(config, bundlePath)
   return bundlePath.replace(/^\/+/, '')
-}
-
-/**
- * Best-effort maintenance of the bundle-root log.md per OKF spec section 7.
- * Log failures never fail the main operation.
- */
-async function updateLog(
-  token: string,
-  config: RepoConfig,
-  action: LogAction,
-  bundlePath: string,
-  title: string
-) {
-  try {
-    const logRepoPath = fullPath(config, 'log.md')
-    let existing: string | null = null
-    let sha: string | undefined
-    try {
-      const file = await getFile(token, config, logRepoPath)
-      existing = file.content
-      sha = file.sha
-    } catch (err) {
-      if (!(err instanceof GitHubError && err.status === 404)) throw err
-    }
-    const today = new Date().toISOString().slice(0, 10)
-    const updated = appendLogEntry(existing, action, bundlePath, title, today)
-    await putFile(token, config, logRepoPath, updated, `Log ${action.toLowerCase()} of ${bundlePath}`, sha)
-  } catch {
-    // best effort only
-  }
 }
 
 export async function GET(req: NextRequest) {

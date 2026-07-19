@@ -342,6 +342,61 @@ export async function fetchFileMeta(
 }
 
 /**
+ * Batch-fetch the raw text of bundle files. Authenticated requests use the
+ * GraphQL API; anonymous ones (public repos) fall back to the raw CDN.
+ */
+export async function fetchFileTexts(
+  token: string | null,
+  config: RepoConfig,
+  bundlePaths: string[]
+): Promise<Record<string, string>> {
+  const texts: Record<string, string> = {}
+  const prefix = config.root ? `${config.root}/` : ''
+  if (!token) {
+    const chunkSize = 25
+    for (let i = 0; i < bundlePaths.length; i += chunkSize) {
+      await Promise.all(
+        bundlePaths.slice(i, i + chunkSize).map(async (p) => {
+          try {
+            const res = await fetch(
+              `https://raw.githubusercontent.com/${config.owner}/${config.repo}/${encodeURIComponent(config.branch)}/${encodePath(prefix + p)}`,
+              { cache: 'no-store' }
+            )
+            if (res.ok) texts[p] = await res.text()
+          } catch {
+            // missing entries are simply absent from the result
+          }
+        })
+      )
+    }
+    return texts
+  }
+  const chunkSize = 50
+  for (let i = 0; i < bundlePaths.length; i += chunkSize) {
+    const chunk = bundlePaths.slice(i, i + chunkSize)
+    const fields = chunk
+      .map((p, j) => {
+        const expression = `${config.branch}:${prefix}${p}`
+        return `f${j}: object(expression: ${JSON.stringify(expression)}) { ... on Blob { text } }`
+      })
+      .join('\n')
+    const query = `query { repository(owner: ${JSON.stringify(config.owner)}, name: ${JSON.stringify(config.repo)}) { ${fields} } }`
+    try {
+      const data = await gh(token, '/graphql', { method: 'POST', body: JSON.stringify({ query }) })
+      const repo = data?.data?.repository
+      if (!repo) continue
+      chunk.forEach((p, j) => {
+        const text: string | undefined | null = repo[`f${j}`]?.text
+        if (typeof text === 'string') texts[p] = text
+      })
+    } catch {
+      // missing entries are simply absent from the result
+    }
+  }
+  return texts
+}
+
+/**
  * List every markdown file below the configured bundle root, and detect an
  * optional wiki logo (logo.svg preferred over logo.png) at the bundle root.
  */

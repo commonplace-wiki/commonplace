@@ -1,6 +1,6 @@
 ---
-name: confluence-to-okf
-description: Migrate a Confluence Cloud space to an Open Knowledge Format (OKF) wiki stored in a GitHub repository. Use when the user wants to export, convert, or migrate a Confluence space (or its pages) to markdown, OKF, or a GitHub-backed wiki.
+name: confluence-to-commonplace
+description: Migrate a Confluence Cloud space to a Commonplace wiki (Open Knowledge Format bundle) stored in a GitHub repository. Use when the user wants to export, convert, or migrate a Confluence space (or its pages) to markdown, OKF, or a GitHub-backed wiki.
 ---
 
 # Migrate a Confluence space to an OKF wiki

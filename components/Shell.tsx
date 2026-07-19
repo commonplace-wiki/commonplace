@@ -140,6 +140,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [treeError, setTreeError] = useState<string | null>(null)
   const [settings, setSettings] = useState<WikiSettings | null>(null)
   const [logo, setLogo] = useState<string | null>(null)
+  // Monotonic id so an older, slower /api/tree response never overwrites a newer one.
+  const treeRequestRef = useRef(0)
 
   const refreshSettings = useCallback(() => {
     fetch('/api/settings')
@@ -156,10 +158,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       .catch(() => {})
   }, [])
 
-  const refreshTree = useCallback(() => {
+  const fetchTree = useCallback(() => {
+    const requestId = ++treeRequestRef.current
     fetch('/api/tree')
       .then(async (res) => {
         const data = await res.json()
+        // A newer request is in flight or already landed; drop this response.
+        if (requestId !== treeRequestRef.current) return
         if (res.status === 401) {
           // No session and the repo is not publicly readable.
           router.replace('/login')
@@ -175,8 +180,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           // cache is best-effort
         }
       })
-      .catch((err) => setTreeError(err.message))
+      .catch((err) => {
+        if (requestId === treeRequestRef.current) setTreeError(err.message)
+      })
   }, [router])
+
+  // Called after a page is added, renamed, moved, or deleted. GitHub's tree
+  // read can lag the write, so refresh now and again shortly after until the
+  // sidebar reflects the change.
+  const refreshTree = useCallback(() => {
+    fetchTree()
+    setTimeout(fetchTree, 1500)
+    setTimeout(fetchTree, 4000)
+  }, [fetchTree])
 
   useEffect(() => {
     let cancelled = false
@@ -196,7 +212,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore broken cache
     }
-    refreshTree()
+    fetchTree()
     refreshSettings()
     async function boot() {
       const [meRes, cfgRes] = await Promise.all([fetch('/api/me'), fetch('/api/config')])
@@ -225,7 +241,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [router, refreshTree, refreshSettings])
+  }, [router, fetchTree, refreshSettings])
 
   useEffect(() => {
     if (settings !== null) document.title = settings.name || 'Commonplace'
