@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import Markdown from '@/components/Markdown'
 import { repoHomeUrl, useWiki } from '@/components/Shell'
@@ -354,9 +354,18 @@ function RecentChanges() {
 
 function DirectoryView({ dir }: { dir: string }) {
   const { files, settings, me } = useWiki()
+  const router = useRouter()
   const indexPath = dir ? `${dir}/index.md` : 'index.md'
   const hasIndex = (files || []).some((f) => f.path === indexPath)
+  // The folder's own page is its Confluence-style twin (infrastructure.md next
+  // to infrastructure/); index.md is OKF-reserved and stays render-only.
+  const twinPath = dir ? `${dir}.md` : null
+  const hasTwin = twinPath !== null && (files || []).some((f) => f.path === twinPath)
   const [index, setIndex] = useState<FileData | null>(null)
+
+  useEffect(() => {
+    if (hasTwin && twinPath) router.replace(`/${twinPath}`)
+  }, [hasTwin, twinPath, router])
 
   useEffect(() => {
     setIndex(null)
@@ -367,6 +376,8 @@ function DirectoryView({ dir }: { dir: string }) {
   }, [indexPath, hasIndex])
 
   const name = dir ? dir.split('/').pop() : settings?.name || 'Home'
+
+  if (hasTwin) return <p className="muted">Loading page…</p>
 
   return (
     <div>
@@ -379,7 +390,17 @@ function DirectoryView({ dir }: { dir: string }) {
             Edit
           </Link>
         )}
-        {me && !hasIndex && (
+        {me && !hasIndex && dir && (
+          <Link
+            className="btn btn-primary"
+            href={`/edit/${twinPath}?new=1&title=${encodeURIComponent(
+              (dir.split('/').pop() || dir).replace(/[-_]/g, ' ')
+            )}`}
+          >
+            Create page
+          </Link>
+        )}
+        {me && !hasIndex && !dir && (
           <Link className="btn" href={`/edit/${indexPath}?new=1`}>
             Add index.md
           </Link>
