@@ -16,13 +16,16 @@ function Landing() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const errorCode = searchParams.get('error')
+  // /login?token=1 skips the setup redirect and goes straight to token sign-in.
+  const tokenOnly = searchParams.get('token') === '1'
 
   const [signedIn, setSignedIn] = useState<boolean | undefined>(undefined)
   const [config, setConfig] = useState<RepoConfig | null>(null)
+  const [oauth, setOauth] = useState(true)
   const [pat, setPat] = useState('')
   const [patError, setPatError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [showTokenSignIn, setShowTokenSignIn] = useState(false)
+  const [showTokenSignIn, setShowTokenSignIn] = useState(tokenOnly)
 
   useEffect(() => {
     fetch('/api/me').then(async (res) => {
@@ -30,12 +33,19 @@ function Landing() {
         router.replace('/')
         return
       }
-      setSignedIn(false)
       // Show which wiki this deployment serves on the sign-in screen.
       const cfg = await (await fetch('/api/config')).json().catch(() => null)
       if (cfg?.config) setConfig(cfg.config)
+      // A fresh deployment without provider sign-in: walk the admin through
+      // creating the app first instead of presenting a dead sign-in button.
+      if (cfg && cfg.oauth === false && !tokenOnly) {
+        router.replace('/setup')
+        return
+      }
+      setOauth(cfg?.oauth !== false)
+      setSignedIn(false)
     })
-  }, [router])
+  }, [router, tokenOnly])
 
   async function signInWithPat(e: React.FormEvent) {
     e.preventDefault()
@@ -75,11 +85,19 @@ function Landing() {
 
       {signedIn === false && (
         <>
-          <div className="signin-actions">
-            <a href="/api/auth/login" className="btn btn-primary">
-              Sign in with {config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'}
-            </a>
-          </div>
+          {oauth && (
+            <div className="signin-actions">
+              <a href="/api/auth/login" className="btn btn-primary">
+                Sign in with {config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'}
+              </a>
+            </div>
+          )}
+          {!oauth && (
+            <p className="muted">
+              {config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'} sign-in is not configured for
+              this deployment. <a href="/setup">Set it up</a> or use a personal access token below.
+            </p>
+          )}
           {!showTokenSignIn && (
             <button className="link-button muted" onClick={() => setShowTokenSignIn(true)}>
               Other sign-in options

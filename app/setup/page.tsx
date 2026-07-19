@@ -84,8 +84,8 @@ export default function SetupPage() {
           </ol>
         </div>
         <p className="muted">
-          Alternatively, sign in with a personal access token (<code>api</code> scope) — no
-          application needed.
+          Alternatively, <a href="/login?token=1">sign in with a personal access token</a> (
+          <code>api</code> scope), no application needed.
         </p>
       </div>
     )
@@ -123,6 +123,10 @@ export default function SetupPage() {
       <p className="muted">
         Afterwards: put the shown client ID and secret into the deployment environment, restart, and
         install the app on the wiki repository.
+      </p>
+      <p className="muted">
+        Alternatively, <a href="/login?token=1">sign in with a personal access token</a>, no app
+        needed.
       </p>
     </div>
   )
