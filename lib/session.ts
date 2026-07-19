@@ -4,6 +4,12 @@ import { getRepoConfig } from './config'
 
 const SESSION_COOKIE = 'okf_session'
 
+if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
+  // Without a real secret, session cookies are sealed with a public constant
+  // and can be forged. Refuse to boot rather than run insecure in production.
+  throw new Error('SESSION_SECRET must be set in production (e.g. `openssl rand -hex 32`)')
+}
+
 const key = crypto
   .createHash('sha256')
   .update(process.env.SESSION_SECRET || 'commonplace-insecure-dev-secret')
