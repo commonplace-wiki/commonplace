@@ -185,7 +185,7 @@ button {
   overflow-y: auto;
   background: var(--bg-subtle);
   border-right: 1px solid var(--border);
-  padding: 12px 8px 24px;
+  padding: 12px 8px 8px;
   display: flex;
   flex-direction: column;
 }
@@ -320,6 +320,46 @@ body.sidebar-resizing {
 }
 .tree-link:hover {
   text-decoration: none;
+}
+
+/* Drag & drop reordering */
+.tree-row.dragging {
+  opacity: 0.4;
+}
+.tree-row.drop-before,
+.tree-row.drop-after {
+  position: relative;
+}
+.tree-row.drop-before::before,
+.tree-row.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.tree-row.drop-before::before {
+  top: -1px;
+}
+.tree-row.drop-after::after {
+  bottom: -1px;
+}
+.tree-spinner {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  margin-right: 6px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: tree-spin 0.7s linear infinite;
+}
+@keyframes tree-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .tree-children {

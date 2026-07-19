@@ -38,11 +38,14 @@ interface WikiContextValue {
   config: RepoConfig | null
   /** Every .md file of the bundle with its frontmatter title. Null while loading. */
   files: WikiFile[] | null
+  /** Sidebar sort order from .commonplace/order.yaml: directory path → child names. */
+  order: Record<string, string[]>
   treeError: string | null
   settings: WikiSettings | null
   /** Bundle path of the wiki logo (.commonplace/logo.svg or .png), if any. */
   logo: string | null
-  refreshTree: () => void
+  /** Refetches the tree; the returned promise resolves with the first fetch. */
+  refreshTree: () => Promise<void>
   refreshSettings: () => void
 }
 
@@ -50,10 +53,11 @@ const WikiContext = createContext<WikiContextValue>({
   me: null,
   config: null,
   files: null,
+  order: {},
   treeError: null,
   settings: null,
   logo: null,
-  refreshTree: () => {},
+  refreshTree: async () => {},
   refreshSettings: () => {},
 })
 
@@ -133,6 +137,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [authResolved, setAuthResolved] = useState(false)
   const [config, setConfig] = useState<RepoConfig | null>(null)
   const [files, setFiles] = useState<WikiFile[] | null>(null)
+  const [order, setOrder] = useState<Record<string, string[]>>({})
   const [treeError, setTreeError] = useState<string | null>(null)
   const [settings, setSettings] = useState<WikiSettings | null>(null)
   const [logo, setLogo] = useState<string | null>(null)
@@ -156,7 +161,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   const fetchTree = useCallback(() => {
     const requestId = ++treeRequestRef.current
-    fetch('/api/tree')
+    return fetch('/api/tree')
       .then(async (res) => {
         const data = await res.json()
         // A newer request is in flight or already landed; drop this response.
@@ -169,9 +174,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         if (!res.ok) throw new Error(data.error || 'Failed to load tree')
         setFiles(data.files)
         setLogo(data.logo || null)
+        setOrder(data.order || {})
         setTreeError(null)
         try {
-          sessionStorage.setItem('okf_tree', JSON.stringify({ files: data.files, logo: data.logo || null }))
+          sessionStorage.setItem(
+            'okf_tree',
+            JSON.stringify({ files: data.files, logo: data.logo || null, order: data.order || {} })
+          )
         } catch {
           // cache is best-effort
         }
@@ -185,9 +194,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // read can lag the write, so refresh now and again shortly after until the
   // sidebar reflects the change.
   const refreshTree = useCallback(() => {
-    fetchTree()
+    const first = fetchTree()
     setTimeout(fetchTree, 1500)
     setTimeout(fetchTree, 4000)
+    return first
   }, [fetchTree])
 
   useEffect(() => {
@@ -201,6 +211,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         else {
           setFiles(parsed.files)
           setLogo(parsed.logo || null)
+          setOrder(parsed.order || {})
         }
       }
       const cachedSettings = sessionStorage.getItem('okf_settings')
@@ -286,7 +297,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <WikiContext.Provider
-      value={{ me, config, files, treeError, settings, logo, refreshTree, refreshSettings }}
+      value={{ me, config, files, order, treeError, settings, logo, refreshTree, refreshSettings }}
     >
       <header className="topbar">
         <Link href="/" className="brand">

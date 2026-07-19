@@ -11,6 +11,7 @@ Idea: Keep your knowledge in a Git repository, following [Open Knowledge Format 
 - **Just a frontend**: Commonplace is a stateless frontend. Everything is persisted in your Git repository.
 - **GitHub permissions**: Using the GitHub login and permission model, you control who has read and write access to the wiki. Support for public and private repos.
 - **Open Knowledge Format**: Google's universal format to collect knowledge and relationships.
+- **Page ordering**: Drag pages in the sidebar to reorder them. The order is stored in `.commonplace/order.yaml`; pages not listed there sort alphabetically.
 - **Markdown Editor**: A nice editor with just the right feature set. Good support for code snippets, drag & drop, screenshots and rich formatting. Files are committed to an `assets/` folder next to the page.
 - **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents.
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.

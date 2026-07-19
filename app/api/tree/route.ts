@@ -1,7 +1,18 @@
 import { NextResponse } from 'next/server'
-import { getRepoConfig, type RepoConfig } from '@/lib/config'
-import { fetchFileMeta, gh, GitHubError, listMarkdownFiles } from '@/lib/github'
+import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
+import { fetchFileMeta, getFile, gh, GitHubError, listMarkdownFiles } from '@/lib/github'
+import { ORDER_FILE, parseOrderMap, type OrderMap } from '@/lib/order'
 import { getSession } from '@/lib/session'
+
+async function fetchOrderMap(token: string | null, config: RepoConfig): Promise<OrderMap> {
+  try {
+    const file = await getFile(token, config, fullPath(config, ORDER_FILE))
+    return parseOrderMap(file.content)
+  } catch {
+    // No order file (or unreadable): the sidebar falls back to title sort.
+    return {}
+  }
+}
 
 /**
  * A tree 404/409 can mean "repo missing or no access" but also "repo exists
@@ -29,11 +40,14 @@ export async function GET() {
   const token = session?.token ?? null
   try {
     const { files, truncated, logo } = await listMarkdownFiles(token, config)
-    const meta = await fetchFileMeta(
-      token,
-      config,
-      files.map((f) => f.path)
-    )
+    const [meta, order] = await Promise.all([
+      fetchFileMeta(
+        token,
+        config,
+        files.map((f) => f.path)
+      ),
+      fetchOrderMap(token, config),
+    ])
     return NextResponse.json({
       files: files.map((f) => ({
         path: f.path,
@@ -42,6 +56,7 @@ export async function GET() {
       })),
       truncated,
       logo,
+      order,
     })
   } catch (err) {
     // Brand-new wiki: the repo exists but has no commits (or the configured
@@ -52,7 +67,7 @@ export async function GET() {
       [404, 409].includes(err.status) &&
       (await repoIsEmpty(token, config))
     ) {
-      return NextResponse.json({ files: [], truncated: false, logo: null, empty: true })
+      return NextResponse.json({ files: [], truncated: false, logo: null, order: {}, empty: true })
     }
     // Anonymous access to a private (or missing) repo: ask for sign-in
     // instead of surfacing GitHub's 404.

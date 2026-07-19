@@ -2,7 +2,62 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
 import { getFile, GitHubError, movePaths, putFile, type PathMove } from '@/lib/github'
 import { appendLogEntry, type LogAction } from '@/lib/okf'
+import { ORDER_FILE, orderName, parseOrderMap, serializeOrderMap } from '@/lib/order'
 import { getSession } from '@/lib/session'
+
+/**
+ * Keep .commonplace/order.yaml in step with a move: a rename in place keeps
+ * the page's position, a move to another directory drops its entry (unlisted
+ * pages sort by title), and order entries for directories inside the moved
+ * subtree follow the move.
+ */
+async function syncOrderAfterMove(token: string, config: RepoConfig, fromFile: string, toFile: string) {
+  try {
+    const repoPath = fullPath(config, ORDER_FILE)
+    let file
+    try {
+      file = await getFile(token, config, repoPath)
+    } catch (err) {
+      if (err instanceof GitHubError && err.status === 404) return
+      throw err
+    }
+    const map = parseOrderMap(file.content)
+    let changed = false
+
+    const fromDir = fromFile.includes('/') ? fromFile.slice(0, fromFile.lastIndexOf('/')) : ''
+    const toDir = toFile.includes('/') ? toFile.slice(0, toFile.lastIndexOf('/')) : ''
+    const list = map[fromDir]
+    const idx = list ? list.indexOf(orderName(fromFile)) : -1
+    if (list && idx !== -1) {
+      if (fromDir === toDir) list[idx] = orderName(toFile)
+      else list.splice(idx, 1)
+      if (!list.length) delete map[fromDir]
+      changed = true
+    }
+
+    const fromSubtree = fromFile.slice(0, -3)
+    const toSubtree = toFile.slice(0, -3)
+    for (const key of Object.keys(map)) {
+      if (key === fromSubtree || key.startsWith(`${fromSubtree}/`)) {
+        map[toSubtree + key.slice(fromSubtree.length)] = map[key]
+        delete map[key]
+        changed = true
+      }
+    }
+
+    if (!changed) return
+    await putFile(
+      token,
+      config,
+      repoPath,
+      serializeOrderMap(map),
+      `Update sidebar order after move of ${fromFile}`,
+      file.sha
+    )
+  } catch {
+    // best effort only
+  }
+}
 
 async function logMove(token: string, config: RepoConfig, toFile: string, title: string) {
   try {
@@ -80,6 +135,8 @@ export async function POST(req: NextRequest) {
       `Move ${path} to ${toFile}`,
       rewriteLinks
     )
+
+    await syncOrderAfterMove(session.token, config, path, toFile)
 
     const title = typeof payload?.title === 'string' && payload.title ? payload.title : toFile
     if (payload?.updateLog !== false) {

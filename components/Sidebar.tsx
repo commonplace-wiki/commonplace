@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWiki, type WikiFile } from './Shell'
 
 function Chevron() {
@@ -24,11 +24,18 @@ interface Node {
   children: Node[]
 }
 
+type OrderMap = Record<string, string[]>
+
 function pretty(name: string): string {
   return name.replace(/\.md$/, '').replace(/[-_]/g, ' ')
 }
 
-function buildTree(files: WikiFile[]): Node[] {
+/** Node name as used in order.yaml lists: basename without the .md suffix. */
+function orderKey(path: string): string {
+  return (path.split('/').pop() || path).replace(/\.md$/, '')
+}
+
+function buildTree(files: WikiFile[], order: OrderMap): Node[] {
   const root: Node = { title: '', path: '', isDir: true, children: [] }
   const dirs = new Map<string, Node>([['', root]])
 
@@ -76,7 +83,17 @@ function buildTree(files: WikiFile[]): Node[] {
       }
       merge(dir)
     }
-    node.children.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }))
+    // Children listed in order.yaml come first, in that order; the rest keep
+    // the title sort.
+    const list = order[node.path] ?? []
+    node.children.sort((a, b) => {
+      const ia = list.indexOf(orderKey(a.path))
+      const ib = list.indexOf(orderKey(b.path))
+      if (ia !== -1 && ib !== -1) return ia - ib
+      if (ia !== -1) return -1
+      if (ib !== -1) return 1
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
+    })
   }
   merge(root)
   return root.children
@@ -84,25 +101,89 @@ function buildTree(files: WikiFile[]): Node[] {
 
 function TreeLevel({
   nodes,
+  dir,
   activePath,
   expanded,
   toggle,
+  onReorder,
+  saving,
 }: {
   nodes: Node[]
+  /** Directory path of this sibling group ('' for the bundle root). */
+  dir: string
   activePath: string
   expanded: Set<string>
   toggle: (path: string) => void
+  /** When set, rows are draggable and drops persist the new sibling order. */
+  onReorder?: (dir: string, names: string[], moved: string) => void
+  /** Row whose reorder commit is still in flight (shows a spinner). */
+  saving?: { dir: string; name: string } | null
 }) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null)
+  /** Insertion index (0..nodes.length) while dragging over this level. */
+  const [dropIdx, setDropIdx] = useState<number | null>(null)
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (dragIdx === null || dropIdx === null) return
+    const names = nodes.map((n) => orderKey(n.path))
+    const [moved] = names.splice(dragIdx, 1)
+    names.splice(dropIdx > dragIdx ? dropIdx - 1 : dropIdx, 0, moved)
+    setDragIdx(null)
+    setDropIdx(null)
+    if (names.some((n, i) => n !== orderKey(nodes[i].path))) onReorder?.(dir, names, moved)
+  }
+
+  // Drops are only accepted between siblings: rows of other levels never set
+  // this level's dragIdx, so their dragover falls through unhandled.
+  function dnd(i: number) {
+    if (!onReorder) return {}
+    return {
+      draggable: true,
+      onDragStart: (e: React.DragEvent<HTMLDivElement>) => {
+        e.stopPropagation()
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', nodes[i].path)
+        setDragIdx(i)
+      },
+      onDragOver: (e: React.DragEvent<HTMLDivElement>) => {
+        if (dragIdx === null) return
+        e.preventDefault()
+        e.stopPropagation()
+        e.dataTransfer.dropEffect = 'move'
+        const rect = e.currentTarget.getBoundingClientRect()
+        setDropIdx(e.clientY < rect.top + rect.height / 2 ? i : i + 1)
+      },
+      onDrop: handleDrop,
+      onDragEnd: () => {
+        setDragIdx(null)
+        setDropIdx(null)
+      },
+    }
+  }
+
+  function dndClass(i: number): string {
+    if (dragIdx === null) return ''
+    let cls = ''
+    if (i === dragIdx) cls += ' dragging'
+    if (dropIdx === i) cls += ' drop-before'
+    if (dropIdx === nodes.length && i === nodes.length - 1) cls += ' drop-after'
+    return cls
+  }
+
   return (
     <div>
-      {nodes.map((node) => {
+      {nodes.map((node, i) => {
         const linkTarget = node.isDir && node.pagePath ? node.pagePath : node.path
         const isActive = activePath === linkTarget || (node.isDir && activePath === node.path)
+        const isSaving = saving != null && saving.dir === dir && saving.name === orderKey(node.path)
+        const spinner = isSaving && <span className="tree-spinner" aria-label="Saving order…" />
         if (node.isDir) {
           const isExpanded = expanded.has(node.path)
           return (
             <div key={node.path}>
-              <div className={`tree-row${isActive ? ' active' : ''}`}>
+              <div className={`tree-row${isActive ? ' active' : ''}${dndClass(i)}`} {...dnd(i)}>
                 <button
                   className={`tree-toggle${isExpanded ? ' open' : ''}`}
                   onClick={() => toggle(node.path)}
@@ -114,23 +195,33 @@ function TreeLevel({
                 <Link href={`/${linkTarget}`} className="tree-link" title={node.path}>
                   {node.title}
                 </Link>
+                {spinner}
               </div>
               {isExpanded && (
                 <div className="tree-children">
-                  <TreeLevel nodes={node.children} activePath={activePath} expanded={expanded} toggle={toggle} />
+                  <TreeLevel
+                    nodes={node.children}
+                    dir={node.path}
+                    activePath={activePath}
+                    expanded={expanded}
+                    toggle={toggle}
+                    onReorder={onReorder}
+                    saving={saving}
+                  />
                 </div>
               )}
             </div>
           )
         }
         return (
-          <div key={node.path} className={`tree-row${isActive ? ' active' : ''}`}>
+          <div key={node.path} className={`tree-row${isActive ? ' active' : ''}${dndClass(i)}`} {...dnd(i)}>
             <span className="tree-toggle leaf">
               <span className="tree-dot" />
             </span>
             <Link href={`/${node.path}`} className="tree-link" title={node.path}>
               {node.title}
             </Link>
+            {spinner}
           </div>
         )
       })}
@@ -139,14 +230,52 @@ function TreeLevel({
 }
 
 export default function Sidebar() {
-  const { files, treeError, settings } = useWiki()
+  const { files, order, treeError, settings, me, refreshTree } = useWiki()
   const pathname = usePathname()
   const [query, setQuery] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Optimistic reorders, merged over the server state so the sidebar keeps
+  // the new order while GitHub's read still lags the commit.
+  const [orderOverride, setOrderOverride] = useState<OrderMap>({})
+  // The just-dropped row while its commit and tree reload are in flight;
+  // further drags wait until it clears.
+  const [saving, setSaving] = useState<{ dir: string; name: string } | null>(null)
+  const [reorderError, setReorderError] = useState<string | null>(null)
 
   const activePath = decodeURIComponent(pathname.replace(/^\/(wiki\/|edit\/)?/, ''))
 
-  const tree = useMemo(() => (files ? buildTree(files) : []), [files])
+  const effectiveOrder = useMemo(() => ({ ...order, ...orderOverride }), [order, orderOverride])
+  const tree = useMemo(() => (files ? buildTree(files, effectiveOrder) : []), [files, effectiveOrder])
+
+  const reorder = useCallback(
+    (dir: string, names: string[], moved: string) => {
+      setReorderError(null)
+      setSaving({ dir, name: moved })
+      setOrderOverride((prev) => ({ ...prev, [dir]: names }))
+      fetch('/api/order', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dir, children: names }),
+      })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}))
+            throw new Error(data.error || 'Could not save the new order')
+          }
+          await refreshTree()
+        })
+        .catch((err) => {
+          setReorderError(err.message)
+          setOrderOverride((prev) => {
+            const next = { ...prev }
+            delete next[dir]
+            return next
+          })
+        })
+        .finally(() => setSaving(null))
+    },
+    [refreshTree]
+  )
 
   // Keep the branch to the current page open (Confluence behavior); everything
   // else stays collapsed until the user expands it.
@@ -193,6 +322,7 @@ export default function Sidebar() {
         onChange={(e) => setQuery(e.target.value)}
       />
       {treeError && <div className="tree-empty">Error: {treeError}</div>}
+      {reorderError && <div className="tree-empty">Reorder failed: {reorderError}</div>}
       {!treeError && files === null && <div className="tree-empty">Loading pages…</div>}
       {!filtered && files !== null && (
         <div className={`tree-row home${activePath === '' ? ' active' : ''}`}>
@@ -216,7 +346,15 @@ export default function Sidebar() {
           {filtered.length === 0 && <div className="tree-empty">No matches.</div>}
         </div>
       ) : (
-        <TreeLevel nodes={tree} activePath={activePath} expanded={expanded} toggle={toggle} />
+        <TreeLevel
+          nodes={tree}
+          dir=""
+          activePath={activePath}
+          expanded={expanded}
+          toggle={toggle}
+          onReorder={me && me.canWrite !== false && !saving ? reorder : undefined}
+          saving={saving}
+        />
       )}
       <div className="sidebar-spacer" />
       <div className="sidebar-bottom">
