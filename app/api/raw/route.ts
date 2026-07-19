@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { fullPath, getRepoConfig } from '@/lib/config'
+import { encodePath } from '@/lib/github'
+import { getSession } from '@/lib/session'
+
+const MIME: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
+  pdf: 'application/pdf',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+  json: 'application/json',
+  csv: 'text/csv; charset=utf-8',
+  yaml: 'text/yaml; charset=utf-8',
+  yml: 'text/yaml; charset=utf-8',
+}
+
+/** Serve a repository asset (image, attachment) through the user's token. */
+export async function GET(req: NextRequest) {
+  // Reads work without a session: public repos are viewable anonymously.
+  const session = await getSession()
+  const config = await getRepoConfig()
+  if (!config) {
+    return new NextResponse(session ? 'No repository selected' : 'Not signed in', {
+      status: session ? 400 : 401,
+    })
+  }
+
+  const path = req.nextUrl.searchParams.get('path') || ''
+  let repoPath: string
+  try {
+    repoPath = fullPath(config, path)
+  } catch {
+    return new NextResponse('Bad path', { status: 400 })
+  }
+
+  const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${encodePath(repoPath)}?ref=${encodeURIComponent(config.branch)}`
+  const upstream = await fetch(url, {
+    headers: {
+      ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+      Accept: 'application/vnd.github.raw+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+    cache: 'no-store',
+  })
+  if (!upstream.ok) {
+    return new NextResponse('Not found', { status: upstream.status })
+  }
+  const ext = (repoPath.split('.').pop() || '').toLowerCase()
+  return new NextResponse(upstream.body, {
+    headers: {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': 'private, max-age=60',
+    },
+  })
+}
