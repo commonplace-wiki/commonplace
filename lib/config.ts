@@ -1,7 +1,3 @@
-import { cookies } from 'next/headers'
-
-const CONFIG_COOKIE = 'okf_repo'
-
 /** Only GitHub is implemented; the URL's host decides, so GitLab/ADO can be added here. */
 export type RepoProvider = 'github'
 
@@ -44,68 +40,23 @@ export function parseRepoUrl(
 }
 
 /**
- * Deployment-pinned repository, e.g. for a hosted company wiki:
- * WIKI_REPO="https://github.com/owner/repo" (or bare "owner/repo"),
- * optional WIKI_BRANCH (default main) and WIKI_ROOT.
- * When set, it overrides any per-user cookie selection.
+ * The wiki repository, configured for the whole deployment:
+ * GIT_REPO="https://github.com/owner/repo" (or bare "owner/repo"),
+ * optional GIT_BRANCH (default main) and GIT_ROOT.
+ * Null when GIT_REPO is unset or not a supported URL.
  */
-export function envRepoConfig(): RepoConfig | null {
-  const raw = process.env.WIKI_REPO || ''
+export function getRepoConfig(): RepoConfig | null {
+  const raw = process.env.GIT_REPO || ''
   if (!raw) return null
   const parsed = parseRepoUrl(raw)
   if (!parsed) {
-    console.warn(`WIKI_REPO is set but not a supported repository URL: ${raw}`)
+    console.warn(`GIT_REPO is set but not a supported repository URL: ${raw}`)
     return null
   }
   return {
     ...parsed,
-    branch: process.env.WIKI_BRANCH || 'main',
-    root: (process.env.WIKI_ROOT || '').replace(/^\/+|\/+$/g, ''),
-  }
-}
-
-export async function getRepoConfig(): Promise<RepoConfig | null> {
-  const fixed = envRepoConfig()
-  if (fixed) return fixed
-  const store = await cookies()
-  const raw = store.get(CONFIG_COOKIE)?.value
-  if (!raw) return null
-  try {
-    const parsed = JSON.parse(raw)
-    if (typeof parsed.owner !== 'string' || typeof parsed.repo !== 'string') return null
-    return {
-      provider: 'github',
-      owner: parsed.owner,
-      repo: parsed.repo,
-      branch: typeof parsed.branch === 'string' && parsed.branch ? parsed.branch : 'main',
-      root: typeof parsed.root === 'string' ? parsed.root.replace(/^\/+|\/+$/g, '') : '',
-    }
-  } catch {
-    return null
-  }
-}
-
-export function configCookie(config: RepoConfig) {
-  return {
-    name: CONFIG_COOKIE,
-    value: JSON.stringify(config),
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 60 * 60 * 24 * 365,
-  }
-}
-
-export function clearedConfigCookie() {
-  return {
-    name: CONFIG_COOKIE,
-    value: '',
-    httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
-    path: '/',
-    maxAge: 0,
+    branch: process.env.GIT_BRANCH || 'main',
+    root: (process.env.GIT_ROOT || '').replace(/^\/+|\/+$/g, ''),
   }
 }
 

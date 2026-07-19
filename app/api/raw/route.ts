@@ -23,11 +23,9 @@ const MIME: Record<string, string> = {
 export async function GET(req: NextRequest) {
   // Reads work without a session: public repos are viewable anonymously.
   const session = await getSession()
-  const config = await getRepoConfig()
+  const config = getRepoConfig()
   if (!config) {
-    return new NextResponse(session ? 'No repository selected' : 'Not signed in', {
-      status: session ? 400 : 401,
-    })
+    return new NextResponse('No wiki repository configured (set GIT_REPO)', { status: 500 })
   }
 
   const path = req.nextUrl.searchParams.get('path') || ''

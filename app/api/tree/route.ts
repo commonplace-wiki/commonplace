@@ -5,11 +5,12 @@ import { getSession } from '@/lib/session'
 
 export async function GET() {
   const session = await getSession()
-  const config = await getRepoConfig()
+  const config = getRepoConfig()
   if (!config) {
-    return NextResponse.json({ error: session ? 'No repository selected' : 'Not signed in' }, {
-      status: session ? 400 : 401,
-    })
+    return NextResponse.json(
+      { error: 'No wiki repository configured (set GIT_REPO)' },
+      { status: 500 }
+    )
   }
   const token = session?.token ?? null
   try {

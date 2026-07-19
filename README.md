@@ -33,7 +33,7 @@ Then install the app on the wiki repository (App settings → Install App). User
 
 Put the client ID and a generated client secret into `.env.local`, along with a random `SESSION_SECRET` (`openssl rand -hex 32`).
 
-For a deployed (team-facing) wiki, pin the repository with `WIKI_REPO=https://github.com/owner/repo` (plus optional `WIKI_BRANCH` and `WIKI_ROOT`). The URL's host determines the provider; currently only `github.com` is supported (bare `owner/repo` still works as a GitHub shorthand). The repo picker disappears, users land directly on the wiki after signing in, and pages are served from the root path (`/how_to/onboarding.md`). If the pinned repository is public, visitors can read the wiki without signing in; edit actions appear once they use the "Sign in" button. Without `WIKI_REPO`, each user picks a repository at `/login` and the choice is stored in a cookie.
+Point the deployment at the wiki repository with `GIT_REPO=https://github.com/owner/repo` (plus optional `GIT_BRANCH` and `GIT_ROOT` for a subdirectory). The URL's host determines the provider; currently only `github.com` is supported (bare `owner/repo` works as a GitHub shorthand). Each deployment serves exactly one repository, and pages are served from the root path (`/how_to/onboarding.md`). If the repository is public, visitors can read the wiki without signing in; edit actions appear once they use the "Sign in" button.
 
 If you skip the GitHub App setup entirely, you can still sign in with a personal access token: a fine-grained token with Contents read/write on the wiki repository (recommended), or a classic token with `repo` scope.
 
@@ -43,14 +43,14 @@ If you skip the GitHub App setup entirely, you can still sign in with a personal
 npm run dev
 ```
 
-Open http://localhost:3000 and sign in. If no `WIKI_REPO` is pinned, pick the repository that holds (or should hold) your knowledge bundle. Start writing.
+Open http://localhost:3000 and sign in. Start writing.
 
 ## Docker
 
 ```bash
 docker run -p 3000:3000 \
   -e SESSION_SECRET=$(openssl rand -hex 32) \
-  -e WIKI_REPO=https://github.com/owner/repo \
+  -e GIT_REPO=https://github.com/owner/repo \
   -e GITHUB_CLIENT_ID=... \
   -e GITHUB_CLIENT_SECRET=... \
   commonplacewiki/commonplace
@@ -60,7 +60,7 @@ All configuration is passed as environment variables at runtime; nothing is bake
 
 ## MCP server (AI agents)
 
-The deployment exposes an MCP server (Streamable HTTP) at `/api/mcp` with three tools: `search_pages` (content, title, tag, and type search), `get_page` (frontmatter, body, and the blob sha), and `save_page` (create or update as a git commit, with required `type`, automatic `timestamp`, a `log.md` entry, and sha-based conflict detection). It requires a pinned `WIKI_REPO`.
+The deployment exposes an MCP server (Streamable HTTP) at `/api/mcp` with three tools: `search_pages` (content, title, tag, and type search), `get_page` (frontmatter, body, and the blob sha), and `save_page` (create or update as a git commit, with required `type`, automatic `timestamp`, a `log.md` entry, and sha-based conflict detection).
 
 Authenticate with a GitHub token in the `Authorization` header; reads work without a token when the wiki repository is public. For Claude Code:
 

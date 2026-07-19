@@ -22,9 +22,11 @@ async function requireContext() {
   if (!session) {
     return { error: NextResponse.json({ error: 'Not signed in' }, { status: 401 }) }
   }
-  const config = await getRepoConfig()
+  const config = getRepoConfig()
   if (!config) {
-    return { error: NextResponse.json({ error: 'No repository selected' }, { status: 400 }) }
+    return {
+      error: NextResponse.json({ error: 'No wiki repository configured (set GIT_REPO)' }, { status: 500 }),
+    }
   }
   return { session, config }
 }
@@ -40,11 +42,9 @@ function validateMarkdownPath(config: RepoConfig, bundlePath: unknown): string {
 export async function GET(req: NextRequest) {
   // Reads work without a session: public repos are viewable anonymously.
   const session = await getSession()
-  const config = await getRepoConfig()
+  const config = getRepoConfig()
   if (!config) {
-    return NextResponse.json({ error: session ? 'No repository selected' : 'Not signed in' }, {
-      status: session ? 400 : 401,
-    })
+    return NextResponse.json({ error: 'No wiki repository configured (set GIT_REPO)' }, { status: 500 })
   }
   const token = session?.token ?? null
   const path = req.nextUrl.searchParams.get('path') || ''

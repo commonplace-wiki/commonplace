@@ -34,8 +34,6 @@ export interface WikiSettings {
 interface WikiContextValue {
   me: Me | null
   config: RepoConfig | null
-  /** True when the repository is pinned by the deployment (WIKI_REPO). */
-  fixedConfig: boolean
   /** Every .md file of the bundle with its frontmatter title. Null while loading. */
   files: WikiFile[] | null
   treeError: string | null
@@ -47,7 +45,6 @@ interface WikiContextValue {
 const WikiContext = createContext<WikiContextValue>({
   me: null,
   config: null,
-  fixedConfig: false,
   files: null,
   treeError: null,
   settings: null,
@@ -59,7 +56,7 @@ export function useWiki() {
   return useContext(WikiContext)
 }
 
-function UserMenu({ me, fixedConfig, onLogout }: { me: Me; fixedConfig: boolean; onLogout: () => void }) {
+function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -96,11 +93,6 @@ function UserMenu({ me, fixedConfig, onLogout }: { me: Me; fixedConfig: boolean;
           <Link href="/settings" className="user-menu-item" onClick={() => setOpen(false)}>
             Wiki settings
           </Link>
-          {!fixedConfig && (
-            <Link href="/login" className="user-menu-item" onClick={() => setOpen(false)}>
-              Change repository
-            </Link>
-          )}
           <a
             href={`https://github.com/${me.login}`}
             target="_blank"
@@ -135,7 +127,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   /** True once /api/me answered: me === null then means anonymous viewer. */
   const [authResolved, setAuthResolved] = useState(false)
   const [config, setConfig] = useState<RepoConfig | null>(null)
-  const [fixedConfig, setFixedConfig] = useState(false)
   const [files, setFiles] = useState<WikiFile[] | null>(null)
   const [treeError, setTreeError] = useState<string | null>(null)
   const [settings, setSettings] = useState<WikiSettings | null>(null)
@@ -219,7 +210,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       const cfgData = await cfgRes.json()
       if (!cfgData.config) {
-        router.replace('/login')
+        setTreeError('This deployment has no wiki repository configured (set GIT_REPO).')
+        setAuthResolved(true)
         return
       }
       if (meRes.status === 401) {
@@ -227,14 +219,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         // If the repo turns out to be private, the tree request 401s and
         // redirects to /login from there.
         setConfig(cfgData.config)
-        setFixedConfig(Boolean(cfgData.fixed))
         setAuthResolved(true)
         return
       }
       const meData = await meRes.json()
       setMe(meData)
       setConfig(cfgData.config)
-      setFixedConfig(Boolean(cfgData.fixed))
       setAuthResolved(true)
     }
     boot()
@@ -291,7 +281,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <WikiContext.Provider
-      value={{ me, config, fixedConfig, files, treeError, settings, refreshTree, refreshSettings }}
+      value={{ me, config, files, treeError, settings, refreshTree, refreshSettings }}
     >
       <header className="topbar">
         <Link href="/" className="brand">
@@ -317,7 +307,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
             Sign in
           </Link>
         )}
-        {me && <UserMenu me={me} fixedConfig={fixedConfig} onLogout={logout} />}
+        {me && <UserMenu me={me} onLogout={logout} />}
       </header>
       <Sidebar />
       <div className="sidebar-resizer" onMouseDown={startSidebarResize} aria-hidden="true" />

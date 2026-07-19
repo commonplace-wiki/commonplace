@@ -11,7 +11,7 @@ interface SettingsForm {
 }
 
 export default function SettingsPage() {
-  const { refreshSettings, config, fixedConfig } = useWiki()
+  const { refreshSettings, config } = useWiki()
   const [form, setForm] = useState<SettingsForm | null>(null)
   const [sha, setSha] = useState<string | null>(null)
   const [exists, setExists] = useState(true)
@@ -65,7 +65,7 @@ export default function SettingsPage() {
         <strong>
           {config ? `${config.owner}/${config.repo} @ ${config.branch}${config.root ? ` /${config.root}` : ''}` : '…'}
         </strong>
-        {fixedConfig ? ' (fixed by the deployment via WIKI_REPO)' : <> — <a href="/login">change</a></>}
+        {' (set by the deployment via GIT_REPO)'}
         <br />
         Settings are stored as <code>.wiki/settings.yaml</code> in the repository, so they are versioned
         and shared by everyone using this wiki. A <code>.wiki/logo.svg</code> or{' '}

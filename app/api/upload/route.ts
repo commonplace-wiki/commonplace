@@ -19,8 +19,10 @@ function sanitizeName(name: string): string {
 export async function POST(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
-  const config = await getRepoConfig()
-  if (!config) return NextResponse.json({ error: 'No repository selected' }, { status: 400 })
+  const config = getRepoConfig()
+  if (!config) {
+    return NextResponse.json({ error: 'No wiki repository configured (set GIT_REPO)' }, { status: 500 })
+  }
 
   const payload = await req.json().catch(() => null)
   const content = typeof payload?.content === 'string' ? payload.content.replace(/\s/g, '') : ''

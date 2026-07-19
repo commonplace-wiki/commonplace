@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { envRepoConfig, fullPath, type RepoConfig } from '@/lib/config'
+import { getRepoConfig, fullPath, type RepoConfig } from '@/lib/config'
 import {
   fetchFileTexts,
   getFile,
@@ -285,9 +285,9 @@ async function handleMessage(req: NextRequest, msg: RpcMessage): Promise<object 
     case 'tools/list':
       return rpcResult(id, { tools: TOOLS })
     case 'tools/call': {
-      const config = envRepoConfig()
+      const config = getRepoConfig()
       if (!config) {
-        return rpcError(id, -32603, 'This deployment has no pinned wiki repository (set WIKI_REPO).')
+        return rpcError(id, -32603, 'This deployment has no wiki repository configured (set GIT_REPO).')
       }
       const ctx: Ctx = { token: bearerToken(req), config }
       const name = typeof msg.params?.name === 'string' ? msg.params.name : ''

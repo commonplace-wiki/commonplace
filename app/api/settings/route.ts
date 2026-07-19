@@ -36,11 +36,9 @@ function sanitize(raw: any): WikiSettings {
 export async function GET() {
   // Reads work without a session: public repos are viewable anonymously.
   const session = await getSession()
-  const config = await getRepoConfig()
+  const config = getRepoConfig()
   if (!config) {
-    return NextResponse.json({ error: session ? 'No repository selected' : 'Not signed in' }, {
-      status: session ? 400 : 401,
-    })
+    return NextResponse.json({ error: 'No wiki repository configured (set GIT_REPO)' }, { status: 500 })
   }
   try {
     const file = await getFile(session?.token ?? null, config, fullPath(config, SETTINGS_FILE))
@@ -58,8 +56,10 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Not signed in' }, { status: 401 })
-  const config = await getRepoConfig()
-  if (!config) return NextResponse.json({ error: 'No repository selected' }, { status: 400 })
+  const config = getRepoConfig()
+  if (!config) {
+    return NextResponse.json({ error: 'No wiki repository configured (set GIT_REPO)' }, { status: 500 })
+  }
   const payload = await req.json().catch(() => null)
   if (!payload?.settings) return NextResponse.json({ error: 'settings object required' }, { status: 400 })
   const settings = sanitize(payload.settings)
