@@ -111,6 +111,9 @@ function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
           <Link href="/settings" className="user-menu-item" onClick={() => setOpen(false)}>
             Settings
           </Link>
+          <Link href="/mcp" className="user-menu-item" onClick={() => setOpen(false)}>
+            MCP
+          </Link>
           <a
             href={me.profileUrl || `https://github.com/${me.login}`}
             target="_blank"
@@ -137,7 +140,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // "+ New page" creates in the directory the user is currently looking at.
   const currentDir = (() => {
     const p = decodeURIComponent(pathname).replace(/^\/+/, '')
-    if (!p || p === 'settings' || p === 'login' || p.startsWith('edit/') || p.startsWith('wiki/')) return ''
+    if (!p || p === 'settings' || p === 'mcp' || p === 'login' || p.startsWith('edit/') || p.startsWith('wiki/')) return ''
     if (p.endsWith('.md')) return p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
     return p
   })()
