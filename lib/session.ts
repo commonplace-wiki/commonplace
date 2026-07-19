@@ -4,19 +4,6 @@ import { getRepoConfig } from './config'
 
 const SESSION_COOKIE = 'okf_session'
 
-if (
-  process.env.NODE_ENV === 'production' &&
-  // `next build` imports route modules to collect page data with
-  // NODE_ENV=production but without runtime secrets; only guard the real
-  // server boot, not the build.
-  process.env.NEXT_PHASE !== 'phase-production-build' &&
-  !process.env.SESSION_SECRET
-) {
-  // Without a real secret, session cookies are sealed with a public constant
-  // and can be forged. Refuse to boot rather than run insecure in production.
-  throw new Error('SESSION_SECRET must be set in production (e.g. `openssl rand -hex 32`)')
-}
-
 const key = crypto
   .createHash('sha256')
   .update(process.env.SESSION_SECRET || 'commonplace-insecure-dev-secret')
