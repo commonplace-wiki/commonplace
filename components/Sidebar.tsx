@@ -194,11 +194,6 @@ export default function Sidebar() {
       />
       {treeError && <div className="tree-empty">Error: {treeError}</div>}
       {!treeError && files === null && <div className="tree-empty">Loading pages…</div>}
-      {!treeError && files !== null && files.length === 0 && (
-        <div className="tree-empty">
-          No markdown pages yet. Use <strong>New page</strong> to create the first one.
-        </div>
-      )}
       {!filtered && files !== null && (
         <div className={`tree-row home${activePath === '' ? ' active' : ''}`}>
           <Link href="/" className="tree-link">

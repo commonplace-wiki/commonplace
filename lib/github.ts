@@ -416,14 +416,14 @@ export async function listMarkdownFiles(
     if (prefix && !entry.path.startsWith(prefix)) continue
     const bundlePath = entry.path.slice(prefix.length)
     bundlePaths.add(bundlePath)
-    if (bundlePath.startsWith('.wiki/')) continue
+    if (bundlePath.startsWith('.commonplace/')) continue
     if (bundlePath.endsWith('.md')) files.push({ path: bundlePath })
   }
   files.sort((a, b) => a.path.localeCompare(b.path))
-  const logo = bundlePaths.has('.wiki/logo.svg')
-    ? '.wiki/logo.svg'
-    : bundlePaths.has('.wiki/logo.png')
-      ? '.wiki/logo.png'
+  const logo = bundlePaths.has('.commonplace/logo.svg')
+    ? '.commonplace/logo.svg'
+    : bundlePaths.has('.commonplace/logo.png')
+      ? '.commonplace/logo.png'
       : null
   return { files, truncated: Boolean(data.truncated), logo }
 }

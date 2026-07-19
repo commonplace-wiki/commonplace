@@ -11,13 +11,62 @@ interface SettingsForm {
 }
 
 export default function SettingsPage() {
-  const { refreshSettings, config } = useWiki()
+  const { refreshSettings, refreshTree, config, logo } = useWiki()
   const [form, setForm] = useState<SettingsForm | null>(null)
   const [sha, setSha] = useState<string | null>(null)
   const [exists, setExists] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [logoBusy, setLogoBusy] = useState(false)
+  /** Local override so the preview updates before the tree refresh lands. */
+  const [logoOverride, setLogoOverride] = useState<string | null | undefined>(undefined)
+
+  const currentLogo = logoOverride === undefined ? logo : logoOverride
+
+  async function uploadLogo(file: File) {
+    const ext = file.name.toLowerCase().endsWith('.svg') || file.type === 'image/svg+xml' ? 'svg' : 'png'
+    if (ext === 'png' && !(file.name.toLowerCase().endsWith('.png') || file.type === 'image/png')) {
+      setError('Logo must be an SVG or PNG file')
+      return
+    }
+    setLogoBusy(true)
+    setError(null)
+    setMessage(null)
+    const buf = await file.arrayBuffer()
+    let binary = ''
+    for (const byte of new Uint8Array(buf)) binary += String.fromCharCode(byte)
+    const res = await fetch('/api/settings/logo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ext, content: btoa(binary) }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setLogoBusy(false)
+    if (res.ok) {
+      setLogoOverride(data.path)
+      setMessage('Logo committed to the repository.')
+      refreshTree()
+    } else {
+      setError(data.error || 'Logo upload failed')
+    }
+  }
+
+  async function removeLogo() {
+    setLogoBusy(true)
+    setError(null)
+    setMessage(null)
+    const res = await fetch('/api/settings/logo', { method: 'DELETE' })
+    setLogoBusy(false)
+    if (res.ok) {
+      setLogoOverride(null)
+      setMessage('Logo removed.')
+      refreshTree()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setError(data.error || 'Logo removal failed')
+    }
+  }
 
   useEffect(() => {
     fetch('/api/settings').then(async (res) => {
@@ -59,7 +108,7 @@ export default function SettingsPage() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-      <h1 className="page-title">Wiki settings</h1>
+      <h1 className="page-title">Settings</h1>
       <p className="muted">
         Repository:{' '}
         <strong>
@@ -67,22 +116,55 @@ export default function SettingsPage() {
         </strong>
         {' (set by the deployment via GIT_REPO)'}
         <br />
-        Settings are stored as <code>.wiki/settings.yaml</code> in the repository, so they are versioned
-        and shared by everyone using this wiki. A <code>.wiki/logo.svg</code> or{' '}
-        <code>.wiki/logo.png</code> is shown in the top bar.
+        Settings are stored as <code>.commonplace/settings.yaml</code> in the repository, so they are versioned
+        and shared by everyone using this wiki. A <code>.commonplace/logo.svg</code> or{' '}
+        <code>.commonplace/logo.png</code> is shown in the top bar.
       </p>
       {!exists && <div className="notice">No settings file yet; saving creates it.</div>}
       {message && <div className="notice">{message}</div>}
       {error && <div className="error-banner">{error}</div>}
       <form onSubmit={save}>
         <div className="field">
-          <label>Wiki name</label>
+          <label>Name</label>
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="e.g. Acme Wiki"
           />
           <div className="hint">Shown in the top bar, the browser tab, and as the home page title.</div>
+        </div>
+        <div className="field">
+          <label>Logo</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {currentLogo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={`/api/raw?path=${encodeURIComponent(currentLogo)}`}
+                alt="Wiki logo"
+                style={{ height: 32, maxWidth: 160, objectFit: 'contain' }}
+              />
+            )}
+            <input
+              type="file"
+              accept=".svg,.png,image/svg+xml,image/png"
+              disabled={logoBusy}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) uploadLogo(file)
+                e.target.value = ''
+              }}
+              style={{ width: 'auto' }}
+            />
+            {currentLogo && (
+              <button type="button" className="btn" onClick={removeLogo} disabled={logoBusy}>
+                {logoBusy ? 'Working…' : 'Remove'}
+              </button>
+            )}
+          </div>
+          <div className="hint">
+            SVG or PNG, up to 1 MB; committed as <code>.commonplace/logo.svg</code> (or <code>.png</code>) and
+            shown in the top bar.
+          </div>
         </div>
         <div className="field">
           <label>Description</label>

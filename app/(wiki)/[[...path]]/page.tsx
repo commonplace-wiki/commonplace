@@ -279,6 +279,45 @@ function formatLogDate(date: string): string {
   return date
 }
 
+/** Friendly onboarding for a wiki whose repository has no pages yet. */
+function EmptyWiki() {
+  const { me, config } = useWiki()
+  return (
+    <div className="empty-wiki">
+      <p>
+        This repository
+        {config && (
+          <>
+            {' '}
+            (
+            <a
+              href={`https://github.com/${config.owner}/${config.repo}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {config.owner}/{config.repo}
+            </a>
+            )
+          </>
+        )}{' '}
+        is empty.
+      </p>
+      {me ? (
+        <>
+          <Link className="btn btn-primary" href="/edit/__new__">
+            Create the first page
+          </Link>
+          <p className="muted">
+            Saving commits the page to the repository — the branch is created with it if needed.
+          </p>
+        </>
+      ) : (
+        <p className="muted">Sign in to create the first page.</p>
+      )}
+    </div>
+  )
+}
+
 /** Last few log.md entries, shown at the bottom of the wiki root page. */
 function RecentChanges() {
   const { files } = useWiki()
@@ -330,7 +369,7 @@ function DirectoryView({ dir }: { dir: string }) {
     })
   }, [indexPath, hasIndex])
 
-  const name = dir ? dir.split('/').pop() : settings?.name || 'Wiki root'
+  const name = dir ? dir.split('/').pop() : settings?.name || 'Home'
 
   return (
     <div>
@@ -352,7 +391,9 @@ function DirectoryView({ dir }: { dir: string }) {
       {files === null && <p className="muted">Loading…</p>}
       {files !== null && hasIndex && index && <Markdown content={index.body} baseDir={dir} />}
       {files !== null && hasIndex && !index && <p className="muted">Loading index…</p>}
-      {files !== null && !hasIndex && <DirectoryListing dir={dir} />}
+      {files !== null &&
+        !hasIndex &&
+        (!dir && files.length === 0 ? <EmptyWiki /> : <DirectoryListing dir={dir} />)}
       {!dir && <RecentChanges />}
     </div>
   )

@@ -24,12 +24,21 @@ function slugify(value: string): string {
     .replace(/^[_.-]+|[_.-]+$/g, '')
 }
 
-/** Normalize a typed directory path: slugify each segment. */
+/** Like slugify, but for directory segments: the case is kept. */
+function slugifyDirSegment(value: string): string {
+  return value
+    .replace(/[äöüßÄÖÜ]/g, (c) => ({ ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss', Ä: 'Ae', Ö: 'Oe', Ü: 'Ue' })[c] || c)
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/[-_]{2,}/g, '-')
+    .replace(/^[_.-]+|[_.-]+$/g, '')
+}
+
+/** Normalize a typed directory path: sanitize each segment, keeping case. */
 function normalizeDir(value: string): string {
   return value
     .trim()
     .split('/')
-    .map((segment) => slugify(segment))
+    .map((segment) => slugifyDirSegment(segment))
     .filter(Boolean)
     .join('/')
 }

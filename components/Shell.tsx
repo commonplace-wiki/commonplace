@@ -8,6 +8,8 @@ import Sidebar from './Sidebar'
 export interface Me {
   login: string
   avatarUrl: string
+  /** Whether the token can push to the wiki repo; null when undetermined. */
+  canWrite?: boolean | null
 }
 
 export interface RepoConfig {
@@ -38,6 +40,8 @@ interface WikiContextValue {
   files: WikiFile[] | null
   treeError: string | null
   settings: WikiSettings | null
+  /** Bundle path of the wiki logo (.commonplace/logo.svg or .png), if any. */
+  logo: string | null
   refreshTree: () => void
   refreshSettings: () => void
 }
@@ -48,6 +52,7 @@ const WikiContext = createContext<WikiContextValue>({
   files: null,
   treeError: null,
   settings: null,
+  logo: null,
   refreshTree: () => {},
   refreshSettings: () => {},
 })
@@ -91,7 +96,7 @@ function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
           </div>
           <div className="user-menu-sep" />
           <Link href="/settings" className="user-menu-item" onClick={() => setOpen(false)}>
-            Wiki settings
+            Settings
           </Link>
           <a
             href={`https://github.com/${me.login}`}
@@ -281,7 +286,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <WikiContext.Provider
-      value={{ me, config, files, treeError, settings, refreshTree, refreshSettings }}
+      value={{ me, config, files, treeError, settings, logo, refreshTree, refreshSettings }}
     >
       <header className="topbar">
         <Link href="/" className="brand">
@@ -311,7 +316,24 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       </header>
       <Sidebar />
       <div className="sidebar-resizer" onMouseDown={startSidebarResize} aria-hidden="true" />
-      <main className="main">{children}</main>
+      <main className="main">
+        {me && me.canWrite === false && config && (
+          <div className="error-banner">
+            You are signed in, but your token has no write access to{' '}
+            <a
+              href={`https://github.com/${config.owner}/${config.repo}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {config.owner}/{config.repo}
+            </a>
+            , so saving pages will fail. If sign-in uses a GitHub App, install it on this repository
+            (App settings → Install App); with a personal access token, grant it Contents read/write
+            on this repository.
+          </div>
+        )}
+        {children}
+      </main>
     </WikiContext.Provider>
   )
 }

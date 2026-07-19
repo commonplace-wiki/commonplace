@@ -4,7 +4,7 @@ import { fullPath, getRepoConfig } from '@/lib/config'
 import { getFile, GitHubError, putFile } from '@/lib/github'
 import { getSession } from '@/lib/session'
 
-/** Wiki-level settings, stored under .wiki/ in the connected repository. */
+/** Wiki-level settings, stored under .commonplace/ in the connected repository. */
 export interface WikiSettings {
   name: string
   description: string
@@ -12,7 +12,7 @@ export interface WikiSettings {
   update_log: boolean
 }
 
-const SETTINGS_FILE = '.wiki/settings.yaml'
+const SETTINGS_FILE = '.commonplace/settings.yaml'
 
 const DEFAULTS: WikiSettings = {
   name: '',

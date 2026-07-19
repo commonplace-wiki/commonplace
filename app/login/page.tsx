@@ -59,7 +59,7 @@ function Landing() {
       <h1>Commonplace</h1>
       {config && (
         <p className="subtitle">
-          Wiki:{' '}
+          Repository:{' '}
           <a href={`https://github.com/${config.owner}/${config.repo}`} target="_blank" rel="noreferrer">
             {config.owner}/{config.repo}
           </a>
