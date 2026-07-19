@@ -45,6 +45,12 @@ export async function GET(req: NextRequest) {
     headers: {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': 'private, max-age=60',
+      // Assets are attacker-controllable repo content. `nosniff` pins the
+      // declared type, and the sandboxed CSP stops an SVG (served inline as
+      // image/svg+xml so <img> keeps working) from executing script when it
+      // is opened directly as a top-level document.
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:",
     },
   })
 }

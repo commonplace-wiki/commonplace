@@ -60,6 +60,24 @@ button {
   z-index: 20;
 }
 
+/* Hamburger: hidden on wide screens, shown when the sidebar collapses. */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-left: -6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.nav-toggle:hover {
+  background: var(--bg-hover);
+}
+
 .brand {
   display: flex;
   align-items: center;
@@ -217,16 +235,46 @@ body.sidebar-resizing {
   padding: calc(var(--topbar-h) + 28px) var(--content-pad) 80px;
 }
 
+.sidebar-backdrop {
+  display: none;
+}
+
 @media (max-width: 900px) {
   :root {
     --content-pad: 20px;
   }
-  .sidebar,
+  .nav-toggle {
+    display: inline-flex;
+  }
   .sidebar-resizer {
     display: none;
   }
   .main {
     margin-left: 0;
+  }
+  /* The sidebar becomes an off-canvas drawer, revealed by the hamburger. */
+  .sidebar {
+    width: min(var(--sidebar-w), 84vw);
+    z-index: 30;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 2px 0 16px rgba(0, 0, 0, 0.18);
+  }
+  .sidebar.open {
+    transform: none;
+  }
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: var(--topbar-h) 0 0 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 29;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
   }
 }
 

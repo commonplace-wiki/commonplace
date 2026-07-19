@@ -229,7 +229,7 @@ function TreeLevel({
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open = false }: { open?: boolean }) {
   const { files, order, treeError, settings, me, refreshTree } = useWiki()
   const pathname = usePathname()
   const [query, setQuery] = useState('')
@@ -314,7 +314,7 @@ export default function Sidebar() {
   }
 
   return (
-    <nav className="sidebar">
+    <nav id="wiki-sidebar" className={`sidebar${open ? ' open' : ''}`}>
       <input
         className="search-box"
         placeholder="Filter pages…"

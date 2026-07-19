@@ -142,6 +142,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return p
   })()
   const [me, setMe] = useState<Me | null>(null)
+  // Mobile nav drawer: hidden on wide screens, slides in over the content
+  // when the topbar hamburger is tapped.
+  const [navOpen, setNavOpen] = useState(false)
   /** True once /api/me answered: me === null then means anonymous viewer. */
   const [authResolved, setAuthResolved] = useState(false)
   const [config, setConfig] = useState<RepoConfig | null>(null)
@@ -262,6 +265,11 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     if (settings !== null) document.title = settings.name || 'Commonplace'
   }, [settings])
 
+  // Close the mobile drawer whenever the route changes (a nav link was tapped).
+  useEffect(() => {
+    setNavOpen(false)
+  }, [pathname])
+
   // Resizable sidebar: width lives in the --sidebar-w CSS variable and persists.
   useEffect(() => {
     try {
@@ -309,6 +317,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       value={{ me, config, files, order, treeError, settings, logo, refreshTree, refreshSettings }}
     >
       <header className="topbar">
+        <button
+          className="nav-toggle"
+          onClick={() => setNavOpen((v) => !v)}
+          aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
+          aria-expanded={navOpen}
+          aria-controls="wiki-sidebar"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
         <Link href="/" className="brand">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -334,7 +353,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         )}
         {me && <UserMenu me={me} onLogout={logout} />}
       </header>
-      <Sidebar />
+      <Sidebar open={navOpen} />
+      {navOpen && (
+        <div className="sidebar-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
+      )}
       <div className="sidebar-resizer" onMouseDown={startSidebarResize} aria-hidden="true" />
       <main className="main">
         {me && me.canWrite === false && config && (

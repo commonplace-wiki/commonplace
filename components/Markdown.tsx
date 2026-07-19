@@ -78,7 +78,14 @@ export default function Markdown({ content, baseDir }: { content: string; baseDi
             if (!href || href.startsWith('#')) {
               return <a href={href} {...props}>{children}</a>
             }
-            if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+            const scheme = href.match(/^([a-z][a-z0-9+.-]*):/i)?.[1].toLowerCase()
+            if (scheme) {
+              // Only follow safe external schemes. javascript:, data:, vbscript:
+              // and the like would execute in the wiki's origin on click, so
+              // render them as inert text instead of a live link.
+              if (!['http', 'https', 'mailto'].includes(scheme)) {
+                return <span {...props}>{children}</span>
+              }
               return (
                 <a href={href} target="_blank" rel="noreferrer noopener" {...props}>
                   {children}
@@ -105,7 +112,12 @@ export default function Markdown({ content, baseDir }: { content: string; baseDi
           },
           img({ src, alt, ...props }) {
             const srcStr = typeof src === 'string' ? src : ''
-            if (/^[a-z][a-z0-9+.-]*:/i.test(srcStr) || srcStr.startsWith('data:')) {
+            const srcScheme = srcStr.match(/^([a-z][a-z0-9+.-]*):/i)?.[1].toLowerCase()
+            if (srcScheme) {
+              // Absolute image source: allow only inert schemes.
+              if (!['http', 'https', 'data'].includes(srcScheme)) {
+                return null
+              }
               // eslint-disable-next-line @next/next/no-img-element
               return <img src={srcStr} alt={alt || ''} {...props} />
             }
