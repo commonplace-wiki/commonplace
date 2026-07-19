@@ -384,6 +384,12 @@ function Editor() {
 
   if (!loaded) return <p className="muted">Loading editor…</p>
 
+  // Filename no longer derived from the current title (e.g. after a title
+  // edit, or legacy underscore names): offer an inline rename next to the path.
+  const titleSlug = !isReserved && typeof fm.title === 'string' ? slugify(fm.title) : ''
+  const titleMismatch =
+    !isNew && !isVirtualNew && !!sha && !isReserved && !!titleSlug && `${titleSlug}.md` !== baseName
+
   return (
     <div className="editor-page">
       <div className="editor-bar">
@@ -444,6 +450,19 @@ function Editor() {
         ) : (
           <span className="editor-path">
             {isNew ? 'New page' : 'Editing'} · {path}
+            {titleMismatch && !moveOpen && (
+              <button
+                className="rename-hint"
+                title={`Rename file to ${titleSlug}.md`}
+                onClick={() => {
+                  setMoveDir(dirOf(path))
+                  setMoveName(`${titleSlug}.md`)
+                  setMoveOpen(true)
+                }}
+              >
+                Rename to match title
+              </button>
+            )}
           </span>
         )}
         <div className="topbar-spacer" />
@@ -564,24 +583,6 @@ function Editor() {
                   Page properties
                 </button>
               )}
-              {!isNew &&
-                sha &&
-                !isReserved &&
-                typeof fm.title === 'string' &&
-                slugify(fm.title) &&
-                `${slugify(fm.title)}.md` !== baseName && (
-                  <button
-                    className="user-menu-item"
-                    onClick={() => {
-                      setMoveDir(dirOf(path))
-                      setMoveName(`${slugify(fm.title as string)}.md`)
-                      setPanel(null)
-                      setMoveOpen(true)
-                    }}
-                  >
-                    Rename file to match title
-                  </button>
-                )}
               {!isNew && sha && (
                 <button
                   className="user-menu-item"
