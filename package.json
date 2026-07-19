@@ -2,6 +2,7 @@
   "name": "commonplace",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,6 +15,7 @@
     "d3-force": "^3.0.0",
     "gray-matter": "^4.0.3",
     "js-yaml": "^4.1.0",
+    "lexical": "0.35.0",
     "next": "^15.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

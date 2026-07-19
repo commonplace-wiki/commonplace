@@ -22,6 +22,9 @@ import {
   cancelLinkEdit$,
   codeBlockPlugin,
   codeMirrorPlugin,
+  createRootEditorSubscription$,
+  insertCodeBlock$,
+  realmPlugin,
   diffSourcePlugin,
   headingsPlugin,
   imagePlugin,
@@ -41,6 +44,12 @@ import {
   useCellValues,
   usePublisher,
 } from '@mdxeditor/editor'
+import {
+  $getSelection,
+  $isRangeSelection,
+  COMMAND_PRIORITY_HIGH,
+  KEY_DOWN_COMMAND,
+} from 'lexical'
 
 export interface WikiPageRef {
   path: string
@@ -305,6 +314,50 @@ const CODE_LANGUAGES = {
   md: 'Markdown',
 }
 
+const CODE_FENCE_LANGUAGES = new Set(Object.keys(CODE_LANGUAGES))
+
+/**
+ * Notion/GitHub-style code fence shortcut. MDXEditor's markdown shortcut does
+ * not convert a typed ``` into the CodeMirror-backed code block, so register
+ * it: when the current line is ``` (optionally followed by a known language)
+ * and the user presses space or Enter, replace it with a code block.
+ */
+const codeFenceShortcutPlugin = realmPlugin({
+  init(realm) {
+    realm.pub(createRootEditorSubscription$, (editor) =>
+      editor.registerCommand(
+        KEY_DOWN_COMMAND,
+        (event: KeyboardEvent) => {
+          if (event.key !== 'Enter' && event.key !== ' ') return false
+          let language: string | null = null
+          editor.getEditorState().read(() => {
+            const selection = $getSelection()
+            if (!$isRangeSelection(selection) || !selection.isCollapsed()) return
+            const block = selection.anchor.getNode().getTopLevelElement()
+            if (!block) return
+            const match = /^```([a-zA-Z0-9+#._-]*)$/.exec(block.getTextContent())
+            if (!match) return
+            const lang = match[1].toLowerCase()
+            language = CODE_FENCE_LANGUAGES.has(lang) ? lang : ''
+          })
+          if (language === null) return false
+          event.preventDefault()
+          editor.update(() => {
+            const selection = $getSelection()
+            if (!$isRangeSelection(selection)) return
+            const block = selection.anchor.getNode().getTopLevelElementOrThrow()
+            block.clear()
+            block.selectStart()
+          })
+          realm.pub(insertCodeBlock$, { language, code: '' })
+          return true
+        },
+        COMMAND_PRIORITY_HIGH
+      )
+    )
+  },
+})
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -409,6 +462,7 @@ export default function InitializedMDXEditor({ value, onChange, pageDir, placeho
           tablePlugin(),
           codeBlockPlugin({ defaultCodeBlockLanguage: '' }),
           codeMirrorPlugin({ codeBlockLanguages: CODE_LANGUAGES }),
+          codeFenceShortcutPlugin(),
           diffSourcePlugin({ viewMode: sourceOnly ? 'source' : 'rich-text', diffMarkdown: initialMarkdown }),
           markdownShortcutPlugin(),
         ]}
