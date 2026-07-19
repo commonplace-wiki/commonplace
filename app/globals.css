@@ -186,6 +186,11 @@ button {
   background: var(--bg-subtle);
   border-right: 1px solid var(--border);
   padding: 12px 8px 24px;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar > * {
+  flex-shrink: 0;
 }
 
 .sidebar-resizer {
@@ -455,6 +460,81 @@ body.sidebar-resizing {
 }
 .footer-spacer {
   flex: 1;
+}
+
+.sidebar-spacer {
+  flex: 1;
+  min-height: 18px;
+}
+.sidebar-bottom {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  margin-top: 6px;
+}
+
+/* The graph fills the entire main area exactly; header elements float on top. */
+.graph-page {
+  position: fixed;
+  top: var(--topbar-h);
+  left: var(--sidebar-w);
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+.graph-overlay {
+  position: absolute;
+  top: 14px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  z-index: 10;
+  pointer-events: none;
+}
+.graph-overlay > * {
+  pointer-events: auto;
+}
+.graph-fold-all {
+  margin-left: auto;
+  background: var(--bg);
+}
+.graph-canvas {
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+}
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 4px 0 12px;
+  font-size: 13px;
+  color: var(--text-subtle);
+}
+.graph-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.graph-legend-toggle {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  border-radius: 6px;
+}
+.graph-legend-toggle:hover {
+  background: var(--bg-subtle, #f4f5f7);
+}
+.graph-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 .empty-wiki {

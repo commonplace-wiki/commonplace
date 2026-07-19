@@ -218,6 +218,14 @@ export default function Sidebar() {
       ) : (
         <TreeLevel nodes={tree} activePath={activePath} expanded={expanded} toggle={toggle} />
       )}
+      <div className="sidebar-spacer" />
+      <div className="sidebar-bottom">
+        <div className={`tree-row home${activePath === 'graph' ? ' active' : ''}`}>
+          <Link href="/graph" className="tree-link">
+            Knowledge graph
+          </Link>
+        </div>
+      </div>
     </nav>
   )
 }
