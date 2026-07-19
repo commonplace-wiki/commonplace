@@ -68,23 +68,3 @@ Authenticate with a GitHub token in the `Authorization` header; reads work witho
 claude mcp add --transport http wiki http://localhost:3000/api/mcp \
   --header "Authorization: Bearer github_pat_…"
 ```
-
-## How content is stored
-
-Every page is a markdown file:
-
-```markdown
----
-type: Playbook
-title: Customer churn playbook
-description: How to react when churn spikes.
-tags: [ops, retention]
-timestamp: 2026-07-18T09:30:00.000Z
----
-
-## When to use this
-
-...
-```
-
-Links between pages use bundle-relative paths (`[customers](/tables/customers.md)`) or normal relative paths. Saving a page commits it to the configured branch; concurrent edits are detected via the file's blob SHA and reported instead of silently overwritten.
