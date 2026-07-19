@@ -84,17 +84,26 @@ export async function putFile(
   return data.content.sha
 }
 
-/** Create a binary file from already-base64-encoded content. Fails if the path exists. */
+/**
+ * Create a binary file from already-base64-encoded content. Without sha it
+ * fails if the path exists; with sha it overwrites that version.
+ */
 export async function putFileBase64(
   token: string,
   config: RepoConfig,
   repoPath: string,
   base64Content: string,
-  message: string
+  message: string,
+  sha?: string
 ): Promise<string> {
   const data = await gh(token, contentsUrl(config, repoPath), {
     method: 'PUT',
-    body: JSON.stringify({ message, content: base64Content, branch: config.branch }),
+    body: JSON.stringify({
+      message,
+      content: base64Content,
+      branch: config.branch,
+      ...(sha ? { sha } : {}),
+    }),
   })
   return data.content.sha
 }
@@ -249,6 +258,128 @@ export interface FileMeta {
   hidden: boolean
 }
 
+export interface LastCommit {
+  date: string
+  name: string
+  login: string | null
+  avatarUrl: string | null
+  authorUrl: string | null
+}
+
+/** Who last touched a file (best effort, for the page footer). */
+export async function lastCommit(
+  token: string | null,
+  config: RepoConfig,
+  repoPath: string
+): Promise<LastCommit | null> {
+  const commits = await gh(
+    token,
+    `/repos/${config.owner}/${config.repo}/commits?path=${encodeURIComponent(repoPath)}&sha=${encodeURIComponent(config.branch)}&per_page=1`
+  )
+  const head = Array.isArray(commits) ? commits[0] : null
+  if (!head) return null
+  return {
+    date: head.commit?.author?.date || head.commit?.committer?.date || '',
+    name: head.commit?.author?.name || head.author?.login || 'unknown',
+    login: head.author?.login || null,
+    avatarUrl: head.author?.avatar_url || null,
+    authorUrl: head.author?.login ? `https://github.com/${head.author.login}` : null,
+  }
+}
+
+/**
+ * For GitHub App user tokens, /repos/{owner}/{repo} reports the USER's
+ * permission, not the token's — /user/installations answers which repos the
+ * app token can actually reach.
+ */
+async function appInstalledOnRepo(token: string, config: RepoConfig): Promise<boolean | null> {
+  try {
+    const data = await gh(token, '/user/installations?per_page=50')
+    const fullName = `${config.owner}/${config.repo}`.toLowerCase()
+    for (const inst of data?.installations || []) {
+      for (let page = 1; page <= 10; page++) {
+        const repos = await gh(
+          token,
+          `/user/installations/${inst.id}/repositories?per_page=100&page=${page}`
+        )
+        const list: { full_name?: string }[] = repos?.repositories || []
+        if (list.some((r) => (r.full_name || '').toLowerCase() === fullName)) return true
+        if (list.length < 100) break
+      }
+    }
+    return false
+  } catch {
+    return null
+  }
+}
+
+/** Effective write access of this token to the wiki repo. Null = undetermined. */
+export async function canWrite(
+  token: string,
+  config: RepoConfig,
+  authMethod: string
+): Promise<boolean | null> {
+  let can: boolean
+  try {
+    const repo = await gh(token, `/repos/${config.owner}/${config.repo}`)
+    can = Boolean(repo?.permissions?.push)
+  } catch {
+    return false
+  }
+  if (can && authMethod === 'github-app') {
+    const installed = await appInstalledOnRepo(token, config)
+    if (installed === false) can = false
+  }
+  return can
+}
+
+/** Whether the repository itself is reachable (used to detect empty repos). */
+export async function repoExists(token: string | null, config: RepoConfig): Promise<boolean> {
+  try {
+    await gh(token, `/repos/${config.owner}/${config.repo}`)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Stream a repository file (image, attachment) as a fetch Response. */
+export async function rawResponse(
+  token: string | null,
+  config: RepoConfig,
+  repoPath: string
+): Promise<Response> {
+  return fetch(
+    `${API}/repos/${config.owner}/${config.repo}/contents/${encodePath(repoPath)}?ref=${encodeURIComponent(config.branch)}`,
+    {
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Accept: 'application/vnd.github.raw+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      cache: 'no-store',
+    }
+  )
+}
+
+/** Validate a token and return its user (for PAT sign-in). */
+export async function userInfo(token: string): Promise<{ login: string; avatarUrl: string }> {
+  const user = await gh(token, '/user')
+  return { login: user.login, avatarUrl: user.avatar_url }
+}
+
+export function webUrl(config: RepoConfig, repoPath: string): string {
+  return `https://github.com/${config.owner}/${config.repo}/blob/${config.branch}/${repoPath}`
+}
+
+export function historyUrl(config: RepoConfig, repoPath: string): string {
+  return `https://github.com/${config.owner}/${config.repo}/commits/${config.branch}/${repoPath}`
+}
+
+export function repoHomeUrl(config: RepoConfig): string {
+  return `https://github.com/${config.owner}/${config.repo}`
+}
+
 function unquote(value: string): string {
   const trimmed = value.trim()
   if (
@@ -260,7 +391,7 @@ function unquote(value: string): string {
   return trimmed
 }
 
-function extractMeta(text: string): FileMeta {
+export function extractMeta(text: string): FileMeta {
   if (!text.startsWith('---')) return { title: null, hidden: false }
   const end = text.indexOf('\n---', 3)
   if (end === -1) return { title: null, hidden: false }

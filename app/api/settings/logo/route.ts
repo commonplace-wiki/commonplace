@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig } from '@/lib/config'
-import { deleteFile, encodePath, getFile, gh, GitHubError } from '@/lib/github'
+import { deleteFile, getFile, GitHubError, putFileBase64 } from '@/lib/repo'
 import { getSession } from '@/lib/session'
 
 // ~1 MB of binary payload once base64 overhead is accounted for.
@@ -47,15 +47,14 @@ export async function POST(req: NextRequest) {
   try {
     const bundlePath = logoPath(ext)
     const sha = await existingSha(session.token, config, bundlePath)
-    await gh(session.token, `/repos/${config.owner}/${config.repo}/contents/${encodePath(fullPath(config, bundlePath))}`, {
-      method: 'PUT',
-      body: JSON.stringify({
-        message: 'Update wiki logo',
-        content,
-        branch: config.branch,
-        ...(sha ? { sha } : {}),
-      }),
-    })
+    await putFileBase64(
+      session.token,
+      config,
+      fullPath(config, bundlePath),
+      content,
+      'Update wiki logo',
+      sha ?? undefined
+    )
     // Keep a single logo: drop the other format if it exists.
     const other = logoPath(ext === 'svg' ? 'png' : 'svg')
     const otherSha = await existingSha(session.token, config, other)

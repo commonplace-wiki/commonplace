@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
-import { getFile, GitHubError, movePaths, putFile, type PathMove } from '@/lib/github'
+import { getFile, GitHubError, movePaths, putFile, type PathMove } from '@/lib/repo'
 import { appendLogEntry, type LogAction } from '@/lib/okf'
 import { ORDER_FILE, orderName, parseOrderMap, serializeOrderMap } from '@/lib/order'
 import { getSession } from '@/lib/session'

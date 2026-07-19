@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import Markdown from '@/components/Markdown'
-import { useWiki } from '@/components/Shell'
+import { repoHomeUrl, useWiki } from '@/components/Shell'
 
 interface FileData {
   path: string
@@ -19,6 +19,7 @@ interface FileData {
     name: string
     login: string | null
     avatarUrl: string | null
+    authorUrl?: string | null
   } | null
 }
 
@@ -200,8 +201,8 @@ function FileView({ path }: { path: string }) {
                 {formatUpdated(data.lastCommit.date)}
               </time>{' '}
               by{' '}
-              {data.lastCommit.login ? (
-                <a href={`https://github.com/${data.lastCommit.login}`} target="_blank" rel="noreferrer">
+              {data.lastCommit.authorUrl ? (
+                <a href={data.lastCommit.authorUrl} target="_blank" rel="noreferrer">
                   {data.lastCommit.name}
                 </a>
               ) : (
@@ -290,11 +291,7 @@ function EmptyWiki() {
           <>
             {' '}
             (
-            <a
-              href={`https://github.com/${config.owner}/${config.repo}`}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href={repoHomeUrl(config)} target="_blank" rel="noreferrer">
               {config.owner}/{config.repo}
             </a>
             )

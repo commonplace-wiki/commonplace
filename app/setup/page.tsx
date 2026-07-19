@@ -12,10 +12,21 @@ export default function SetupPage() {
   const [name, setName] = useState('Commonplace')
   const [org, setOrg] = useState('')
   const [origin, setOrigin] = useState('')
+  const [provider, setProvider] = useState<'github' | 'gitlab'>('github')
+  const [host, setHost] = useState('gitlab.com')
   const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     setOrigin(window.location.origin)
+    fetch('/api/config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.config?.provider === 'gitlab') {
+          setProvider('gitlab')
+          setHost(data.config.host)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   const action = org.trim()
@@ -39,6 +50,45 @@ export default function SetupPage() {
     const form = formRef.current!
     form.action = `${action}?state=${state}`
     form.submit()
+  }
+
+  if (provider === 'gitlab') {
+    return (
+      <div className="landing">
+        <h1>Set up GitLab sign-in</h1>
+        <p className="subtitle">
+          Create an OAuth application on your GitLab instance and put its credentials into the
+          deployment environment.
+        </p>
+        <div className="card">
+          <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 8 }}>
+            <li>
+              Open{' '}
+              <a href={`https://${host}/-/user_settings/applications`} target="_blank" rel="noreferrer">
+                https://{host}/-/user_settings/applications
+              </a>{' '}
+              (or a group-owned application under the group settings).
+            </li>
+            <li>
+              Redirect URI: <code>{origin}/api/auth/callback</code>
+            </li>
+            <li>
+              Check <strong>Confidential</strong> and select the <code>api</code> scope.
+            </li>
+            <li>
+              Put the shown Application ID and Secret into the environment and restart:
+              <pre style={{ marginTop: 8 }}>
+                GITLAB_CLIENT_ID=…{'\n'}GITLAB_CLIENT_SECRET=…
+              </pre>
+            </li>
+          </ol>
+        </div>
+        <p className="muted">
+          Alternatively, sign in with a personal access token (<code>api</code> scope) — no
+          application needed.
+        </p>
+      </div>
+    )
   }
 
   return (

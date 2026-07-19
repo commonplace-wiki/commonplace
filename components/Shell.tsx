@@ -8,15 +8,24 @@ import Sidebar from './Sidebar'
 export interface Me {
   login: string
   avatarUrl: string
+  /** Profile page on the wiki's hosting provider. */
+  profileUrl?: string
   /** Whether the token can push to the wiki repo; null when undetermined. */
   canWrite?: boolean | null
 }
 
 export interface RepoConfig {
+  provider: 'github' | 'gitlab'
+  host: string
   owner: string
   repo: string
   branch: string
   root: string
+}
+
+/** Home page of the wiki repository on its hosting provider. */
+export function repoHomeUrl(config: RepoConfig): string {
+  return `https://${config.host}/${config.owner}/${config.repo}`
 }
 
 export interface WikiFile {
@@ -103,12 +112,12 @@ function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
             Settings
           </Link>
           <a
-            href={`https://github.com/${me.login}`}
+            href={me.profileUrl || `https://github.com/${me.login}`}
             target="_blank"
             rel="noreferrer"
             className="user-menu-item"
           >
-            GitHub profile
+            Profile
           </a>
           <div className="user-menu-sep" />
           <button className="user-menu-item" onClick={onLogout}>
@@ -331,16 +340,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         {me && me.canWrite === false && config && (
           <div className="error-banner">
             You are signed in, but your token has no write access to{' '}
-            <a
-              href={`https://github.com/${config.owner}/${config.repo}`}
-              target="_blank"
-              rel="noreferrer"
-            >
+            <a href={repoHomeUrl(config)} target="_blank" rel="noreferrer">
               {config.owner}/{config.repo}
             </a>
-            , so saving pages will fail. If sign-in uses a GitHub App, install it on this repository
-            (App settings → Install App); with a personal access token, grant it Contents read/write
-            on this repository.
+            , so saving pages will fail.{' '}
+            {config.provider === 'gitlab'
+              ? 'You need at least the Developer role on this project, and a token with api scope.'
+              : 'If sign-in uses a GitHub App, install it on this repository (App settings → Install App); with a personal access token, grant it Contents read/write on this repository.'}
           </div>
         )}
         {children}

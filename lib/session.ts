@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { cookies } from 'next/headers'
+import { getRepoConfig } from './config'
 
 const SESSION_COOKIE = 'okf_session'
 
@@ -12,8 +13,8 @@ export interface Session {
   token: string
   login: string
   avatarUrl: string
-  authMethod: 'oauth' | 'github-app' | 'pat'
-  /** GitHub App user tokens expire and come with a refresh token. */
+  authMethod: 'oauth' | 'github-app' | 'gitlab-oauth' | 'pat'
+  /** GitHub App / GitLab OAuth tokens expire and come with a refresh token. */
   refreshToken?: string
   /** Epoch ms when `token` expires. */
   tokenExpiresAt?: number
@@ -43,15 +44,30 @@ export function unseal<T>(sealed: string): T | null {
 
 async function refreshSession(session: Session): Promise<Session | null> {
   try {
-    const res = await fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
+    let url: string
+    let body: Record<string, string | undefined>
+    if (session.authMethod === 'gitlab-oauth') {
+      const host = getRepoConfig()?.host || 'gitlab.com'
+      url = `https://${host}/oauth/token`
+      body = {
+        client_id: process.env.GITLAB_CLIENT_ID,
+        client_secret: process.env.GITLAB_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: session.refreshToken,
+      }
+    } else {
+      url = 'https://github.com/login/oauth/access_token'
+      body = {
         client_id: process.env.GITHUB_CLIENT_ID,
         client_secret: process.env.GITHUB_CLIENT_SECRET,
         grant_type: 'refresh_token',
         refresh_token: session.refreshToken,
-      }),
+      }
+    }
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
       cache: 'no-store',
     })
     const data = await res.json().catch(() => null)
@@ -59,7 +75,7 @@ async function refreshSession(session: Session): Promise<Session | null> {
     return {
       ...session,
       token: data.access_token,
-      // GitHub rotates the refresh token on every use.
+      // Both providers rotate the refresh token on every use.
       refreshToken: data.refresh_token || session.refreshToken,
       tokenExpiresAt: data.expires_in ? Date.now() + data.expires_in * 1000 : undefined,
     }

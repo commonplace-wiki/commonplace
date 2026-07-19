@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig } from '@/lib/config'
-import { GitHubError, putFileBase64 } from '@/lib/github'
+import { GitHubError, putFileBase64 } from '@/lib/repo'
 import { getSession } from '@/lib/session'
 
 // ~5 MB of binary payload once base64 overhead is accounted for.

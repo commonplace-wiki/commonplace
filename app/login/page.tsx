@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
+import { repoHomeUrl, type RepoConfig } from '@/components/Shell'
 
 const ERROR_MESSAGES: Record<string, string> = {
   oauth_unconfigured:
@@ -17,7 +18,7 @@ function Landing() {
   const errorCode = searchParams.get('error')
 
   const [signedIn, setSignedIn] = useState<boolean | undefined>(undefined)
-  const [config, setConfig] = useState<{ owner: string; repo: string; branch: string; root: string } | null>(null)
+  const [config, setConfig] = useState<RepoConfig | null>(null)
   const [pat, setPat] = useState('')
   const [patError, setPatError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -60,7 +61,7 @@ function Landing() {
       {config && (
         <p className="subtitle">
           Repository:{' '}
-          <a href={`https://github.com/${config.owner}/${config.repo}`} target="_blank" rel="noreferrer">
+          <a href={repoHomeUrl(config)} target="_blank" rel="noreferrer">
             {config.owner}/{config.repo}
           </a>
           {config.branch && config.branch !== 'main' ? ` @ ${config.branch}` : ''}
@@ -76,7 +77,7 @@ function Landing() {
         <>
           <div className="signin-actions">
             <a href="/api/auth/login" className="btn btn-primary">
-              Sign in with GitHub
+              Sign in with {config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'}
             </a>
           </div>
           {!showTokenSignIn && (
@@ -91,7 +92,11 @@ function Landing() {
                 <div className="field">
                   <input
                     type="password"
-                    placeholder="github_pat_… (contents read/write) or ghp_… (repo scope)"
+                    placeholder={
+                      config?.provider === 'gitlab'
+                        ? 'glpat-… (api scope)'
+                        : 'github_pat_… (contents read/write) or ghp_… (repo scope)'
+                    }
                     value={pat}
                     onChange={(e) => setPat(e.target.value)}
                     autoFocus

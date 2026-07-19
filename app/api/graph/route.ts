@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getRepoConfig } from '@/lib/config'
-import { fetchFileTexts, GitHubError, listMarkdownFiles } from '@/lib/github'
+import { fetchFileTexts, GitHubError, listMarkdownFiles } from '@/lib/repo'
 import { conceptTitle, parseConcept } from '@/lib/okf'
 import { getSession } from '@/lib/session'
 

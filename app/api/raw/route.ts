@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig } from '@/lib/config'
-import { encodePath } from '@/lib/github'
+import { rawResponse } from '@/lib/repo'
 import { getSession } from '@/lib/session'
 
 const MIME: Record<string, string> = {
@@ -36,15 +36,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Bad path', { status: 400 })
   }
 
-  const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${encodePath(repoPath)}?ref=${encodeURIComponent(config.branch)}`
-  const upstream = await fetch(url, {
-    headers: {
-      ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
-      Accept: 'application/vnd.github.raw+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
-    cache: 'no-store',
-  })
+  const upstream = await rawResponse(session?.token ?? null, config, repoPath)
   if (!upstream.ok) {
     return new NextResponse('Not found', { status: upstream.status })
   }

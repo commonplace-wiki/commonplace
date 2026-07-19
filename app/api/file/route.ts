@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
-import { deleteFile, getFile, GitHubError, putFile } from '@/lib/github'
+import {
+  deleteFile,
+  getFile,
+  GitHubError,
+  historyUrl,
+  lastCommit,
+  putFile,
+  webUrl,
+  type LastCommit,
+} from '@/lib/repo'
 import { updateLog } from '@/lib/log'
 import {
   conceptTitle,
@@ -55,23 +64,9 @@ export async function GET(req: NextRequest) {
     const { frontmatter, body } = parseConcept(file.content)
 
     // Best-effort: who touched this file last, for the page footer.
-    let lastCommit: { date: string; name: string; login: string | null; avatarUrl: string | null } | null =
-      null
+    let head: LastCommit | null = null
     try {
-      const { gh } = await import('@/lib/github')
-      const commits = await gh(
-        token,
-        `/repos/${config.owner}/${config.repo}/commits?path=${encodeURIComponent(repoPath)}&sha=${encodeURIComponent(config.branch)}&per_page=1`
-      )
-      const head = Array.isArray(commits) ? commits[0] : null
-      if (head) {
-        lastCommit = {
-          date: head.commit?.author?.date || head.commit?.committer?.date || '',
-          name: head.commit?.author?.name || head.author?.login || 'unknown',
-          login: head.author?.login || null,
-          avatarUrl: head.author?.avatar_url || null,
-        }
-      }
+      head = await lastCommit(token, config, repoPath)
     } catch {
       // footer info is optional
     }
@@ -82,9 +77,9 @@ export async function GET(req: NextRequest) {
       frontmatter,
       body,
       isReserved: isReservedName(bundlePath),
-      htmlUrl: `https://github.com/${config.owner}/${config.repo}/blob/${config.branch}/${repoPath}`,
-      historyUrl: `https://github.com/${config.owner}/${config.repo}/commits/${config.branch}/${repoPath}`,
-      lastCommit,
+      htmlUrl: webUrl(config, repoPath),
+      historyUrl: historyUrl(config, repoPath),
+      lastCommit: head,
     })
   } catch (err) {
     if (err instanceof GitHubError) return errorResponse(err)

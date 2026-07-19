@@ -1,5 +1,5 @@
 import { fullPath, type RepoConfig } from './config'
-import { getFile, GitHubError, putFile } from './github'
+import { getFile, GitHubError, putFile } from './repo'
 import { appendLogEntry, type LogAction } from './okf'
 
 /**

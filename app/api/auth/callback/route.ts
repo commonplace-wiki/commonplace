@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getRepoConfig } from '@/lib/config'
 import { gh } from '@/lib/github'
-import { sessionCookie } from '@/lib/session'
+import { gl } from '@/lib/gitlab'
+import { sessionCookie, type Session } from '@/lib/session'
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code')
@@ -11,33 +13,70 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/?error=oauth_state', req.url))
   }
 
-  const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({
-      client_id: process.env.GITHUB_CLIENT_ID,
-      client_secret: process.env.GITHUB_CLIENT_SECRET,
-      code,
-    }),
-    cache: 'no-store',
-  })
-  const tokenData = await tokenRes.json().catch(() => null)
-  const accessToken = tokenData?.access_token
-  if (!accessToken) {
-    return NextResponse.redirect(new URL('/?error=oauth_exchange', req.url))
-  }
+  const config = getRepoConfig()
+  const callback = new URL('/api/auth/callback', req.url).toString()
 
-  let user
-  try {
-    user = await gh(accessToken, '/user')
-  } catch {
-    return NextResponse.redirect(new URL('/?error=oauth_user', req.url))
-  }
-
-  const isGitHubApp = (process.env.GITHUB_CLIENT_ID || '').startsWith('Iv')
-  const res = NextResponse.redirect(new URL('/', req.url))
-  res.cookies.set(
-    sessionCookie({
+  let session: Session
+  if (config?.provider === 'gitlab') {
+    const tokenRes = await fetch(`https://${config.host}/oauth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.GITLAB_CLIENT_ID,
+        client_secret: process.env.GITLAB_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        redirect_uri: callback,
+        code,
+      }),
+      cache: 'no-store',
+    })
+    const tokenData = await tokenRes.json().catch(() => null)
+    const accessToken = tokenData?.access_token
+    if (!accessToken) {
+      return NextResponse.redirect(new URL('/?error=oauth_exchange', req.url))
+    }
+    let user
+    try {
+      user = await gl(accessToken, config, '/user')
+    } catch {
+      return NextResponse.redirect(new URL('/?error=oauth_user', req.url))
+    }
+    session = {
+      token: accessToken,
+      login: user.username,
+      avatarUrl: user.avatar_url || '',
+      authMethod: 'gitlab-oauth',
+      ...(tokenData.refresh_token
+        ? {
+            refreshToken: tokenData.refresh_token,
+            tokenExpiresAt: Date.now() + (tokenData.expires_in || 7200) * 1000,
+          }
+        : {}),
+    }
+  } else {
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code,
+      }),
+      cache: 'no-store',
+    })
+    const tokenData = await tokenRes.json().catch(() => null)
+    const accessToken = tokenData?.access_token
+    if (!accessToken) {
+      return NextResponse.redirect(new URL('/?error=oauth_exchange', req.url))
+    }
+    let user
+    try {
+      user = await gh(accessToken, '/user')
+    } catch {
+      return NextResponse.redirect(new URL('/?error=oauth_user', req.url))
+    }
+    const isGitHubApp = (process.env.GITHUB_CLIENT_ID || '').startsWith('Iv')
+    session = {
       token: accessToken,
       login: user.login,
       avatarUrl: user.avatar_url,
@@ -50,8 +89,11 @@ export async function GET(req: NextRequest) {
             tokenExpiresAt: Date.now() + (tokenData.expires_in || 8 * 3600) * 1000,
           }
         : {}),
-    })
-  )
+    }
+  }
+
+  const res = NextResponse.redirect(new URL('/', req.url))
+  res.cookies.set(sessionCookie(session))
   res.cookies.set({ name: 'okf_oauth_state', value: '', path: '/', maxAge: 0 })
   return res
 }

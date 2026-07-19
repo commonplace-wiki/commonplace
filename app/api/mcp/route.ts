@@ -6,7 +6,8 @@ import {
   GitHubError,
   listMarkdownFiles,
   putFile,
-} from '@/lib/github'
+  webUrl,
+} from '@/lib/repo'
 import { updateLog } from '@/lib/log'
 import { conceptTitle, isReservedName, parseConcept, serializeConcept } from '@/lib/okf'
 
@@ -177,7 +178,7 @@ async function getPage(ctx: Ctx, args: Record<string, unknown>) {
     sha: file.sha,
     frontmatter,
     body,
-    htmlUrl: `https://github.com/${ctx.config.owner}/${ctx.config.repo}/blob/${ctx.config.branch}/${repoPath}`,
+    htmlUrl: webUrl(ctx.config, repoPath),
   }
 }
 
@@ -230,7 +231,7 @@ async function savePage(ctx: Ctx, args: Record<string, unknown>) {
     path,
     sha: newSha,
     action: existing ? 'updated' : 'created',
-    htmlUrl: `https://github.com/${ctx.config.owner}/${ctx.config.repo}/blob/${ctx.config.branch}/${repoPath}`,
+    htmlUrl: webUrl(ctx.config, repoPath),
   }
 }
 

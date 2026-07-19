@@ -1,28 +1,39 @@
-/** Only GitHub is implemented; the URL's host decides, so GitLab/ADO can be added here. */
-export type RepoProvider = 'github'
+/** The URL's host decides the provider; ADO etc. can be added here. */
+export type RepoProvider = 'github' | 'gitlab'
 
 export interface RepoConfig {
   provider: RepoProvider
+  /** API/web host, e.g. "github.com" or a self-hosted GitLab host. */
+  host: string
+  /** First path segment (GitHub owner / GitLab top-level group). */
   owner: string
+  /** Rest of the project path; may contain "/" for nested GitLab groups. */
   repo: string
   branch: string
   /** Optional subdirectory inside the repository that is the OKF bundle root. */
   root: string
 }
 
+/** Full project path, e.g. "owner/repo" or "group/subgroup/repo". */
+export function projectPath(config: Pick<RepoConfig, 'owner' | 'repo'>): string {
+  return `${config.owner}/${config.repo}`
+}
+
 /**
- * Parse a repository URL like "https://github.com/owner/repo" into a provider
- * plus owner/repo. Bare "owner/repo" is accepted as a GitHub shorthand.
+ * Parse a repository URL like "https://github.com/owner/repo" or
+ * "https://gitlab.com/group/subgroup/repo" into a provider + project path.
+ * Bare "owner/repo" is accepted as a GitHub shorthand. A non-gitlab.com
+ * GitLab host can be forced with GIT_PROVIDER=gitlab.
  */
 export function parseRepoUrl(
   input: string
-): { provider: RepoProvider; owner: string; repo: string } | null {
+): Pick<RepoConfig, 'provider' | 'host' | 'owner' | 'repo'> | null {
   const trimmed = input.trim().replace(/\.git$/, '').replace(/\/+$/, '')
   if (!trimmed) return null
   if (!/^[a-z]+:\/\//i.test(trimmed)) {
     const parts = trimmed.split('/')
     if (parts.length !== 2 || !parts[0] || !parts[1]) return null
-    return { provider: 'github', owner: parts[0], repo: parts[1] }
+    return { provider: 'github', host: 'github.com', owner: parts[0], repo: parts[1] }
   }
   let url: URL
   try {
@@ -34,7 +45,11 @@ export function parseRepoUrl(
   const segments = url.pathname.split('/').filter(Boolean)
   if (host === 'github.com') {
     if (segments.length !== 2) return null
-    return { provider: 'github', owner: segments[0], repo: segments[1] }
+    return { provider: 'github', host, owner: segments[0], repo: segments[1] }
+  }
+  if (host === 'gitlab.com' || process.env.GIT_PROVIDER === 'gitlab') {
+    if (segments.length < 2) return null
+    return { provider: 'gitlab', host, owner: segments[0], repo: segments.slice(1).join('/') }
   }
   return null
 }

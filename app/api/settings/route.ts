@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import yaml from 'js-yaml'
 import { fullPath, getRepoConfig } from '@/lib/config'
-import { getFile, GitHubError, putFile } from '@/lib/github'
+import { getFile, GitHubError, putFile } from '@/lib/repo'
 import { getSession } from '@/lib/session'
 
 /** Wiki-level settings, stored under .commonplace/ in the connected repository. */

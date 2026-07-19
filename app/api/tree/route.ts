@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
-import { fetchFileMeta, getFile, gh, GitHubError, listMarkdownFiles } from '@/lib/github'
+import { fetchFileMeta, getFile, GitHubError, listMarkdownFiles, repoExists } from '@/lib/repo'
 import { ORDER_FILE, parseOrderMap, type OrderMap } from '@/lib/order'
 import { getSession } from '@/lib/session'
 
@@ -11,20 +11,6 @@ async function fetchOrderMap(token: string | null, config: RepoConfig): Promise<
   } catch {
     // No order file (or unreadable): the sidebar falls back to title sort.
     return {}
-  }
-}
-
-/**
- * A tree 404/409 can mean "repo missing or no access" but also "repo exists
- * and has no commits yet (or the branch does not exist)". Only the latter
- * should render as an empty wiki instead of an error.
- */
-async function repoIsEmpty(token: string | null, config: RepoConfig): Promise<boolean> {
-  try {
-    await gh(token, `/repos/${config.owner}/${config.repo}`)
-    return true
-  } catch {
-    return false
   }
 }
 
@@ -65,7 +51,7 @@ export async function GET() {
     if (
       err instanceof GitHubError &&
       [404, 409].includes(err.status) &&
-      (await repoIsEmpty(token, config))
+      (await repoExists(token, config))
     ) {
       return NextResponse.json({ files: [], truncated: false, logo: null, order: {}, empty: true })
     }
