@@ -22,14 +22,14 @@ npm install
 cp .env.example .env.local
 ```
 
-Create a GitHub App at https://github.com/settings/apps/new (recommended) with:
+Create a GitHub App for sign-in. The easy way: start the app (`npm run dev`) and open http://localhost:3000/setup — it creates the app on GitHub with the right settings in one click and shows you the credentials. Manually instead: https://github.com/settings/apps/new with
 
 - Homepage URL: `http://localhost:3000`
 - Callback URL: `http://localhost:3000/api/auth/callback`
 - Webhook: unchecked
 - Repository permissions: Contents read and write (Metadata read-only is added automatically)
 
-Then install the app on the wiki repository (App settings → Install App). Users get a minimal one-click consent screen, and their tokens can only reach repositories the app is installed on. A classic OAuth App (https://github.com/settings/developers, same callback URL) also works, but its `repo` scope covers every repository the user can access, so GitHub shows a much broader consent screen. The app detects which kind you configured from the client ID (`Iv…` = GitHub App, `Ov…` = OAuth App).
+Then install the app on the wiki repository (App settings → Install App).
 
 Put the client ID and a generated client secret into `.env.local`, along with a random `SESSION_SECRET` (`openssl rand -hex 32`).
 

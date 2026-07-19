@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from 'react'
 
 const ERROR_MESSAGES: Record<string, string> = {
   oauth_unconfigured:
-    'GitHub OAuth is not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in .env.local, or sign in with a personal access token below.',
+    'GitHub sign-in is not configured. Create a GitHub App at /setup, or sign in with a personal access token below.',
   oauth_state: 'The OAuth state check failed. Please try signing in again.',
   oauth_exchange: 'GitHub did not return an access token. Check your OAuth app credentials.',
   oauth_user: 'Could not load your GitHub profile with the returned token.',
