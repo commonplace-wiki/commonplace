@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getRepoConfig } from '@/lib/config'
+import { publicUrl } from '@/lib/url'
 import { gh } from '@/lib/github'
 import { gl } from '@/lib/gitlab'
 import { sessionCookie, type Session } from '@/lib/session'
@@ -10,11 +11,11 @@ export async function GET(req: NextRequest) {
   const expectedState = req.cookies.get('okf_oauth_state')?.value
 
   if (!code || !state || !expectedState || state !== expectedState) {
-    return NextResponse.redirect(new URL('/?error=oauth_state', req.url))
+    return NextResponse.redirect(publicUrl('/?error=oauth_state', req))
   }
 
   const config = getRepoConfig()
-  const callback = new URL('/api/auth/callback', req.url).toString()
+  const callback = publicUrl('/api/auth/callback', req).toString()
 
   let session: Session
   if (config?.provider === 'gitlab') {
@@ -33,13 +34,13 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenRes.json().catch(() => null)
     const accessToken = tokenData?.access_token
     if (!accessToken) {
-      return NextResponse.redirect(new URL('/?error=oauth_exchange', req.url))
+      return NextResponse.redirect(publicUrl('/?error=oauth_exchange', req))
     }
     let user
     try {
       user = await gl(accessToken, config, '/user')
     } catch {
-      return NextResponse.redirect(new URL('/?error=oauth_user', req.url))
+      return NextResponse.redirect(publicUrl('/?error=oauth_user', req))
     }
     session = {
       token: accessToken,
@@ -67,13 +68,13 @@ export async function GET(req: NextRequest) {
     const tokenData = await tokenRes.json().catch(() => null)
     const accessToken = tokenData?.access_token
     if (!accessToken) {
-      return NextResponse.redirect(new URL('/?error=oauth_exchange', req.url))
+      return NextResponse.redirect(publicUrl('/?error=oauth_exchange', req))
     }
     let user
     try {
       user = await gh(accessToken, '/user')
     } catch {
-      return NextResponse.redirect(new URL('/?error=oauth_user', req.url))
+      return NextResponse.redirect(publicUrl('/?error=oauth_user', req))
     }
     const isGitHubApp = (process.env.GITHUB_CLIENT_ID || '').startsWith('Iv')
     session = {
@@ -92,7 +93,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const res = NextResponse.redirect(new URL('/', req.url))
+  const res = NextResponse.redirect(publicUrl('/', req))
   res.cookies.set(sessionCookie(session))
   res.cookies.set({ name: 'okf_oauth_state', value: '', path: '/', maxAge: 0 })
   return res

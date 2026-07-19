@@ -1,17 +1,18 @@
 import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { getRepoConfig } from '@/lib/config'
+import { publicUrl } from '@/lib/url'
 
 export async function GET(req: NextRequest) {
   const config = getRepoConfig()
   const state = crypto.randomBytes(16).toString('hex')
-  const callback = new URL('/api/auth/callback', req.url).toString()
+  const callback = publicUrl('/api/auth/callback', req).toString()
 
   let authorize: URL
   if (config?.provider === 'gitlab') {
     const clientId = process.env.GITLAB_CLIENT_ID
     if (!clientId) {
-      return NextResponse.redirect(new URL('/?error=oauth_unconfigured', req.url))
+      return NextResponse.redirect(publicUrl('/?error=oauth_unconfigured', req))
     }
     authorize = new URL(`https://${config.host}/oauth/authorize`)
     authorize.searchParams.set('client_id', clientId)
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
   } else {
     const clientId = process.env.GITHUB_CLIENT_ID
     if (!clientId) {
-      return NextResponse.redirect(new URL('/?error=oauth_unconfigured', req.url))
+      return NextResponse.redirect(publicUrl('/?error=oauth_unconfigured', req))
     }
     authorize = new URL('https://github.com/login/oauth/authorize')
     authorize.searchParams.set('client_id', clientId)
