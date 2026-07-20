@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { clearCachedPages } from '@/lib/pageCache'
 import Sidebar from './Sidebar'
 
 export interface Me {
@@ -10,7 +11,11 @@ export interface Me {
   avatarUrl: string
   /** Profile page on the wiki's hosting provider. */
   profileUrl?: string
-  /** Whether the token can push to the wiki repo; null when undetermined. */
+  /**
+   * Whether the token can push to the wiki repo. Absent until /api/me/access
+   * answers, and null when that lookup could not determine it — consumers
+   * must treat anything other than `false` as allowed.
+   */
   canWrite?: boolean | null
 }
 
@@ -257,6 +262,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       setMe(meData)
       setConfig(cfgData.config)
       setAuthResolved(true)
+      // Write access is a separate, slower question than identity, and only
+      // drives the warning banner and drag-to-reorder — both of which treat
+      // "undetermined" as permissive. Fetching it after the shell has painted
+      // keeps a slow provider lookup off the critical path.
+      fetch('/api/me/access')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((access) => {
+          if (cancelled || !access) return
+          setMe((prev) => (prev ? { ...prev, canWrite: access.canWrite } : prev))
+        })
+        .catch(() => {
+          // Undetermined access stays permissive; a real save still fails loudly.
+        })
     }
     boot()
     return () => {
@@ -311,6 +329,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     } catch {
       // ignore
     }
+    // Cached page bodies are repo content: they must not outlive the session.
+    clearCachedPages()
     await fetch('/api/auth/logout', { method: 'POST' })
     router.replace('/login')
   }

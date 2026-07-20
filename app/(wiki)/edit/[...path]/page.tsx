@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import MarkdownEditor from '@/components/MarkdownEditor'
 import { useWiki } from '@/components/Shell'
+import { invalidateCachedPage } from '@/lib/pageCache'
 
 const OKF_KEYS = ['type', 'title', 'description', 'resource', 'tags', 'timestamp']
 
@@ -264,6 +265,9 @@ function Editor() {
       setError(data.error || 'Save failed')
       return
     }
+    // The cached copy is now stale, and the save response does not carry
+    // enough (footer commit, provider URLs) to prime a correct replacement.
+    invalidateCachedPage(targetPath)
     if (opts.rename && renameTo) {
       const moveRes = await fetch('/api/move', {
         method: 'POST',
@@ -280,6 +284,7 @@ function Editor() {
       setSaving(false)
       refreshTree()
       if (moveRes.ok) {
+        invalidateCachedPage(moveData.path)
         router.push(`/${moveData.path}`)
       } else {
         setError(`Saved, but renaming failed: ${moveData.error || 'unknown error'}`)
@@ -305,6 +310,7 @@ function Editor() {
     })
     setDeleting(false)
     if (res.ok) {
+      invalidateCachedPage(path)
       refreshTree()
       router.push(`/${dirOf(path)}`)
     } else {
@@ -347,6 +353,9 @@ function Editor() {
     const data = await res.json().catch(() => ({}))
     setMoving(false)
     if (res.ok) {
+      // Both ends of the move: the source is gone, the target is new.
+      invalidateCachedPage(path)
+      invalidateCachedPage(data.path)
       refreshTree()
       router.push(`/${data.path}`)
     } else {
