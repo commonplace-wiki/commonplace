@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import Markdown from '@/components/Markdown'
 import { repoHomeUrl, useWiki } from '@/components/Shell'
+import { invalidateCachedPage, readCachedPage, writeCachedPage } from '@/lib/pageCache'
 
 interface FileData {
   path: string
@@ -132,17 +133,33 @@ function DirectoryListing({ dir }: { dir: string }) {
 
 function FileView({ path }: { path: string }) {
   const { me } = useWiki()
+  // Stale-while-revalidate: the effect paints any cached copy immediately on
+  // mount, and the refetch swaps in the fresh one when it lands. The cache is
+  // deliberately not read during the first render — it is unavailable while
+  // prerendering on the server, so seeding state from it would desync hydration.
   const [data, setData] = useState<FileData | null>(null)
   const [error, setError] = useState<{ status: number; message: string } | null>(null)
 
   useEffect(() => {
-    setData(null)
+    let cancelled = false
+    setData(readCachedPage<FileData>(path))
     setError(null)
     fetch(`/api/file?path=${encodeURIComponent(path)}`).then(async (res) => {
       const json = await res.json()
-      if (res.ok) setData(json)
-      else setError({ status: res.status, message: json.error || 'Failed to load' })
+      if (cancelled) return
+      if (res.ok) {
+        setData(json)
+        writeCachedPage(path, json)
+      } else {
+        // A page that is gone must not keep rendering from cache.
+        if (res.status === 404) invalidateCachedPage(path)
+        setData(null)
+        setError({ status: res.status, message: json.error || 'Failed to load' })
+      }
     })
+    return () => {
+      cancelled = true
+    }
   }, [path])
 
   if (error && error.status === 404) {
@@ -361,6 +378,7 @@ function DirectoryView({ dir }: { dir: string }) {
   // to infrastructure/); index.md is OKF-reserved and stays render-only.
   const twinPath = dir ? `${dir}.md` : null
   const hasTwin = twinPath !== null && (files || []).some((f) => f.path === twinPath)
+  // Seeded from the cache in the effect below, not here — see FileView.
   const [index, setIndex] = useState<FileData | null>(null)
 
   useEffect(() => {
@@ -368,11 +386,18 @@ function DirectoryView({ dir }: { dir: string }) {
   }, [hasTwin, twinPath, router])
 
   useEffect(() => {
-    setIndex(null)
+    let cancelled = false
+    setIndex(readCachedPage<FileData>(indexPath))
     if (!hasIndex) return
     fetch(`/api/file?path=${encodeURIComponent(indexPath)}`).then(async (res) => {
-      if (res.ok) setIndex(await res.json())
+      if (cancelled || !res.ok) return
+      const json = await res.json()
+      setIndex(json)
+      writeCachedPage(indexPath, json)
     })
+    return () => {
+      cancelled = true
+    }
   }, [indexPath, hasIndex])
 
   const name = dir ? dir.split('/').pop() : settings?.name || 'Home'

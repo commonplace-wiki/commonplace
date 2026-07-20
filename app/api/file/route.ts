@@ -60,16 +60,16 @@ export async function GET(req: NextRequest) {
   try {
     const bundlePath = validateMarkdownPath(config, path)
     const repoPath = fullPath(config, bundlePath)
+    // Both reads start together: the footer's commit info is optional, so it
+    // must not add its own round-trip on top of the content fetch. Catching
+    // here (rather than at the await) also keeps a failing commit lookup from
+    // rejecting unhandled when the content fetch is the one that throws.
+    const headPromise: Promise<LastCommit | null> = lastCommit(token, config, repoPath).catch(
+      () => null
+    )
     const file = await getFile(token, config, repoPath)
     const { frontmatter, body } = parseConcept(file.content)
-
-    // Best-effort: who touched this file last, for the page footer.
-    let head: LastCommit | null = null
-    try {
-      head = await lastCommit(token, config, repoPath)
-    } catch {
-      // footer info is optional
-    }
+    const head = await headPromise
 
     return NextResponse.json({
       path: bundlePath,
