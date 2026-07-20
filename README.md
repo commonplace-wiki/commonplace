@@ -29,6 +29,7 @@ Create a GitHub App for sign-in. The easy way: start the app (`npm run dev`) and
 - Callback URL: `http://localhost:3000/api/auth/callback`
 - Webhook: unchecked
 - Repository permissions: Contents read and write (Metadata read-only is added automatically)
+- Organization permissions: Members read-only (optional; lets @-mentions list everyone in the organization instead of just the repository's collaborators)
 
 Then install the app on the wiki repository (App settings → Install App).
 

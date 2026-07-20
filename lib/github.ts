@@ -376,29 +376,63 @@ export interface MentionUser {
   profileUrl: string
 }
 
-/** Repository collaborators, for the editor's @-mention typeahead. */
-export async function listCollaborators(token: string, config: RepoConfig): Promise<MentionUser[]> {
+function toMentionUser(u: any): MentionUser | null {
+  if (!u?.login) return null
+  return {
+    login: u.login,
+    // Neither the collaborators nor the members payload carries a display name.
+    name: null,
+    avatarUrl: u.avatar_url || '',
+    profileUrl: u.html_url || `https://github.com/${u.login}`,
+  }
+}
+
+/**
+ * Page through a user-listing endpoint. Three pages is far more than a mention
+ * list needs; it caps the work on very large repositories and organizations.
+ */
+async function listUsers(token: string, path: string): Promise<MentionUser[]> {
   const users: MentionUser[] = []
-  // Three pages is far more than a mention list needs; it caps the work on
-  // repositories with very large collaborator sets.
   for (let page = 1; page <= 3; page++) {
-    const batch = await gh(
-      token,
-      `/repos/${config.owner}/${config.repo}/collaborators?affiliation=all&per_page=100&page=${page}`
-    )
+    const batch = await gh(token, `${path}${path.includes('?') ? '&' : '?'}per_page=100&page=${page}`)
     if (!Array.isArray(batch)) break
-    for (const c of batch) {
-      if (!c?.login) continue
-      users.push({
-        login: c.login,
-        name: null, // the collaborators payload carries no display name
-        avatarUrl: c.avatar_url || '',
-        profileUrl: c.html_url || `https://github.com/${c.login}`,
-      })
+    for (const entry of batch) {
+      const user = toMentionUser(entry)
+      if (user) users.push(user)
     }
     if (batch.length < 100) break
   }
   return users
+}
+
+/**
+ * People who can be @-mentioned: repository collaborators, plus the wider
+ * organization membership when the token is allowed to see it.
+ *
+ * Collaborators already covers outside collaborators and the organization
+ * members who have access to this repository. Organization members are a
+ * separate call because it needs the "Members" organization permission (read),
+ * which a GitHub App only has if it was granted; without it GitHub answers 403
+ * and we fall back to collaborators alone rather than failing the request.
+ */
+export async function listCollaborators(token: string, config: RepoConfig): Promise<MentionUser[]> {
+  const collaborators = await listUsers(
+    token,
+    `/repos/${config.owner}/${config.repo}/collaborators?affiliation=all`
+  )
+  let members: MentionUser[] = []
+  try {
+    members = await listUsers(token, `/orgs/${config.owner}/members`)
+  } catch (err) {
+    // 403: the token lacks Members (read). 404: the owner is a user account,
+    // not an organization, so there is no membership to read.
+    if (!(err instanceof GitHubError && (err.status === 403 || err.status === 404))) throw err
+  }
+  const byLogin = new Map<string, MentionUser>()
+  for (const user of [...collaborators, ...members]) {
+    if (!byLogin.has(user.login)) byLogin.set(user.login, user)
+  }
+  return [...byLogin.values()]
 }
 
 export function webUrl(config: RepoConfig, repoPath: string): string {
