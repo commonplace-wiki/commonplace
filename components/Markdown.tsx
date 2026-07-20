@@ -68,6 +68,31 @@ function resolveTarget(href: string, baseDir: string): string {
   return out.join('/')
 }
 
+/**
+ * An @-mention renders as a chip. Detected structurally rather than by host,
+ * so it covers github.com, gitlab.com and self-hosted alike: the link text is
+ * exactly `@name` and the href is an https URL whose path is just `name`.
+ */
+function mentionClass(href: string, children: React.ReactNode): string | undefined {
+  const text =
+    typeof children === 'string'
+      ? children
+      : Array.isArray(children) && children.length === 1 && typeof children[0] === 'string'
+        ? children[0]
+        : null
+  if (!text || !text.startsWith('@')) return undefined
+  try {
+    const url = new URL(href)
+    if (url.protocol !== 'https:') return undefined
+    const segments = url.pathname.split('/').filter(Boolean)
+    return segments.length === 1 && segments[0].toLowerCase() === text.slice(1).toLowerCase()
+      ? 'mention'
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export default function Markdown({ content, baseDir }: { content: string; baseDir: string }) {
   return (
     <div className="markdown">
@@ -87,7 +112,13 @@ export default function Markdown({ content, baseDir }: { content: string; baseDi
                 return <span {...props}>{children}</span>
               }
               return (
-                <a href={href} target="_blank" rel="noreferrer noopener" {...props}>
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  {...props}
+                  className={mentionClass(href, children) ?? props.className}
+                >
                   {children}
                 </a>
               )

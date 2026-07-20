@@ -10,7 +10,7 @@ import * as gitlab from './gitlab'
  */
 
 export { GitHubError as RepoError, GitHubError } from './github'
-export type { FileMeta, LastCommit, PathMove, RepoFile, TreeEntry } from './github'
+export type { FileMeta, LastCommit, MentionUser, PathMove, RepoFile, TreeEntry } from './github'
 
 export function getFile(token: string | null, config: RepoConfig, repoPath: string) {
   return config.provider === 'gitlab'
@@ -108,6 +108,13 @@ export function rawResponse(token: string | null, config: RepoConfig, repoPath: 
   return config.provider === 'gitlab'
     ? gitlab.rawResponse(token, config, repoPath)
     : github.rawResponse(token, config, repoPath)
+}
+
+/** People with repository access, for the editor's @-mention typeahead. */
+export function listCollaborators(token: string, config: RepoConfig) {
+  return config.provider === 'gitlab'
+    ? gitlab.listCollaborators(token, config)
+    : github.listCollaborators(token, config)
 }
 
 /** Validate a token and return its user (for PAT sign-in). */

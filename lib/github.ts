@@ -368,6 +368,39 @@ export async function userInfo(token: string): Promise<{ login: string; avatarUr
   return { login: user.login, avatarUrl: user.avatar_url }
 }
 
+/** A person who can be @-mentioned: someone with access to the wiki repository. */
+export interface MentionUser {
+  login: string
+  name: string | null
+  avatarUrl: string
+  profileUrl: string
+}
+
+/** Repository collaborators, for the editor's @-mention typeahead. */
+export async function listCollaborators(token: string, config: RepoConfig): Promise<MentionUser[]> {
+  const users: MentionUser[] = []
+  // Three pages is far more than a mention list needs; it caps the work on
+  // repositories with very large collaborator sets.
+  for (let page = 1; page <= 3; page++) {
+    const batch = await gh(
+      token,
+      `/repos/${config.owner}/${config.repo}/collaborators?affiliation=all&per_page=100&page=${page}`
+    )
+    if (!Array.isArray(batch)) break
+    for (const c of batch) {
+      if (!c?.login) continue
+      users.push({
+        login: c.login,
+        name: null, // the collaborators payload carries no display name
+        avatarUrl: c.avatar_url || '',
+        profileUrl: c.html_url || `https://github.com/${c.login}`,
+      })
+    }
+    if (batch.length < 100) break
+  }
+  return users
+}
+
 export function webUrl(config: RepoConfig, repoPath: string): string {
   return `https://github.com/${config.owner}/${config.repo}/blob/${config.branch}/${repoPath}`
 }
