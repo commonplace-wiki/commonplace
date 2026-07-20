@@ -296,7 +296,18 @@ async function appInstalledOnRepo(token: string, config: RepoConfig): Promise<bo
   try {
     const data = await gh(token, '/user/installations?per_page=50')
     const fullName = `${config.owner}/${config.repo}`.toLowerCase()
-    for (const inst of data?.installations || []) {
+    const all = data?.installations || []
+    // An installation belongs to exactly one account, and lists only that
+    // account's repositories — so only the wiki owner's installation can
+    // possibly contain the wiki. Scanning the others means paging through
+    // every repository the user can reach, which on an account with many
+    // installations costs hundreds of serial round-trips. Fall back to the
+    // full scan if no account matches, so an unexpected shape still works.
+    const owned = all.filter(
+      (inst: { account?: { login?: string } }) =>
+        (inst.account?.login || '').toLowerCase() === config.owner.toLowerCase()
+    )
+    for (const inst of owned.length > 0 ? owned : all) {
       for (let page = 1; page <= 10; page++) {
         const repos = await gh(
           token,
