@@ -77,8 +77,8 @@ export async function GET(req: NextRequest) {
       frontmatter,
       body,
       isReserved: isReservedName(bundlePath),
-      htmlUrl: webUrl(config, repoPath),
-      historyUrl: historyUrl(config, repoPath),
+      htmlUrl: webUrl(config, repoPath) || null,
+      historyUrl: historyUrl(config, repoPath) || null,
       lastCommit: head,
     })
   } catch (err) {

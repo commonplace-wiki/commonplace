@@ -1,5 +1,5 @@
 /** The URL's host decides the provider; ADO etc. can be added here. */
-export type RepoProvider = 'github' | 'gitlab'
+export type RepoProvider = 'github' | 'gitlab' | 'local'
 
 export interface RepoConfig {
   provider: RepoProvider
@@ -12,6 +12,8 @@ export interface RepoConfig {
   branch: string
   /** Optional subdirectory inside the repository that is the OKF bundle root. */
   root: string
+  /** Absolute directory of a local repository (provider "local" only). */
+  dir?: string
 }
 
 /** Full project path, e.g. "owner/repo" or "group/subgroup/repo". */
@@ -23,12 +25,25 @@ export function projectPath(config: Pick<RepoConfig, 'owner' | 'repo'>): string 
  * Parse a repository URL like "https://github.com/owner/repo" or
  * "https://gitlab.com/group/subgroup/repo" into a provider + project path.
  * Bare "owner/repo" is accepted as a GitHub shorthand. A non-gitlab.com
- * GitLab host can be forced with GIT_PROVIDER=gitlab.
+ * GitLab host can be forced with GIT_PROVIDER=gitlab. An absolute filesystem
+ * path (or file:// URL) selects the local provider, for demos/offline use.
  */
 export function parseRepoUrl(
   input: string
-): Pick<RepoConfig, 'provider' | 'host' | 'owner' | 'repo'> | null {
-  const trimmed = input.trim().replace(/\.git$/, '').replace(/\/+$/, '')
+): Pick<RepoConfig, 'provider' | 'host' | 'owner' | 'repo' | 'dir'> | null {
+  // Local paths keep their name verbatim (a directory may be named *.git).
+  const raw = input.trim()
+  const localPath = raw.startsWith('file://')
+    ? decodeURIComponent(raw.slice('file://'.length))
+    : raw.startsWith('/')
+      ? raw
+      : null
+  if (localPath) {
+    const dir = localPath.replace(/\/+$/, '') || '/'
+    const repo = dir.split('/').filter(Boolean).pop() || dir
+    return { provider: 'local', host: '', owner: '', repo, dir }
+  }
+  const trimmed = raw.replace(/\.git$/, '').replace(/\/+$/, '')
   if (!trimmed) return null
   if (!/^[a-z]+:\/\//i.test(trimmed)) {
     const parts = trimmed.split('/')
@@ -56,7 +71,8 @@ export function parseRepoUrl(
 
 /**
  * The wiki repository, configured for the whole deployment:
- * GIT_REPO="https://github.com/owner/repo" (or bare "owner/repo"),
+ * GIT_REPO="https://github.com/owner/repo" (bare "owner/repo", or an
+ * absolute /path/to/dir for a local repository),
  * optional GIT_BRANCH (default main) and GIT_ROOT.
  * Null when GIT_REPO is unset or not a supported URL.
  */

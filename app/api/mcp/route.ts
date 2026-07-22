@@ -178,7 +178,7 @@ async function getPage(ctx: Ctx, args: Record<string, unknown>) {
     sha: file.sha,
     frontmatter,
     body,
-    htmlUrl: webUrl(ctx.config, repoPath),
+    htmlUrl: webUrl(ctx.config, repoPath) || null,
   }
 }
 
@@ -231,7 +231,7 @@ async function savePage(ctx: Ctx, args: Record<string, unknown>) {
     path,
     sha: newSha,
     action: existing ? 'updated' : 'created',
-    htmlUrl: webUrl(ctx.config, repoPath),
+    htmlUrl: webUrl(ctx.config, repoPath) || null,
   }
 }
 

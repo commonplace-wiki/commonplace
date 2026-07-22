@@ -20,7 +20,7 @@ export interface Me {
 }
 
 export interface RepoConfig {
-  provider: 'github' | 'gitlab'
+  provider: 'github' | 'gitlab' | 'local'
   host: string
   owner: string
   repo: string
@@ -28,9 +28,26 @@ export interface RepoConfig {
   root: string
 }
 
-/** Home page of the wiki repository on its hosting provider. */
-export function repoHomeUrl(config: RepoConfig): string {
+/** Home page of the wiki repository on its hosting provider; null for a local repo. */
+export function repoHomeUrl(config: RepoConfig): string | null {
+  if (config.provider === 'local') return null
   return `https://${config.host}/${config.owner}/${config.repo}`
+}
+
+/** "owner/repo", or just the directory name for a local repository. */
+export function repoLabel(config: RepoConfig): string {
+  return config.owner ? `${config.owner}/${config.repo}` : config.repo
+}
+
+/** The repository name, linked to its host when it has one. */
+export function RepoLink({ config }: { config: RepoConfig }) {
+  const url = repoHomeUrl(config)
+  if (!url) return <>{repoLabel(config)}</>
+  return (
+    <a href={url} target="_blank" rel="noreferrer">
+      {repoLabel(config)}
+    </a>
+  )
 }
 
 export interface WikiFile {
@@ -119,14 +136,11 @@ function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
           <Link href="/mcp" className="user-menu-item" onClick={() => setOpen(false)}>
             MCP
           </Link>
-          <a
-            href={me.profileUrl || `https://github.com/${me.login}`}
-            target="_blank"
-            rel="noreferrer"
-            className="user-menu-item"
-          >
-            Profile
-          </a>
+          {me.profileUrl && (
+            <a href={me.profileUrl} target="_blank" rel="noreferrer" className="user-menu-item">
+              Profile
+            </a>
+          )}
           <div className="user-menu-sep" />
           <button className="user-menu-item" onClick={onLogout}>
             Sign out
@@ -384,14 +398,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <main className="main">
         {me && me.canWrite === false && config && (
           <div className="error-banner">
-            You are signed in, but your token has no write access to{' '}
-            <a href={repoHomeUrl(config)} target="_blank" rel="noreferrer">
-              {config.owner}/{config.repo}
-            </a>
+            You are signed in, but your token has no write access to <RepoLink config={config} />
             , so saving pages will fail.{' '}
-            {config.provider === 'gitlab'
-              ? 'You need at least the Developer role on this project, and a token with api scope.'
-              : 'If sign-in uses a GitHub App, install it on this repository (App settings → Install App); with a personal access token, grant it Contents read/write on this repository.'}
+            {config.provider === 'local'
+              ? 'The repository directory is not writable by the server process.'
+              : config.provider === 'gitlab'
+                ? 'You need at least the Developer role on this project, and a token with api scope.'
+                : 'If sign-in uses a GitHub App, install it on this repository (App settings → Install App); with a personal access token, grant it Contents read/write on this repository.'}
           </div>
         )}
         {children}

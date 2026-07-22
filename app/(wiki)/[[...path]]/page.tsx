@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import Markdown from '@/components/Markdown'
-import { repoHomeUrl, useWiki } from '@/components/Shell'
+import { RepoLink, useWiki } from '@/components/Shell'
 import { invalidateCachedPage, readCachedPage, writeCachedPage } from '@/lib/pageCache'
 
 interface FileData {
@@ -13,8 +13,8 @@ interface FileData {
   frontmatter: Record<string, unknown> | null
   body: string
   isReserved: boolean
-  htmlUrl: string
-  historyUrl?: string
+  htmlUrl: string | null
+  historyUrl?: string | null
   lastCommit?: {
     date: string
     name: string
@@ -239,9 +239,11 @@ function FileView({ path }: { path: string }) {
           )
         )}
         <span className="footer-spacer" />
-        <a href={data.htmlUrl} target="_blank" rel="noreferrer">
-          View on GitHub
-        </a>
+        {data.htmlUrl && (
+          <a href={data.htmlUrl} target="_blank" rel="noreferrer">
+            View on GitHub
+          </a>
+        )}
         {data.historyUrl && (
           <a href={data.historyUrl} target="_blank" rel="noreferrer">
             History
@@ -307,11 +309,7 @@ function EmptyWiki() {
         {config && (
           <>
             {' '}
-            (
-            <a href={repoHomeUrl(config)} target="_blank" rel="noreferrer">
-              {config.owner}/{config.repo}
-            </a>
-            )
+            (<RepoLink config={config} />)
           </>
         )}{' '}
         is empty.

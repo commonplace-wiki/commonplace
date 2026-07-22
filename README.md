@@ -43,6 +43,16 @@ If you skip the GitHub App setup entirely, you can still sign in with a personal
 
 For a GitLab wiki repository, create an OAuth application instead (User or Group Settings → Applications, or open `/setup` for guided instructions): redirect URI `http://localhost:3000/api/auth/callback`, scope `api`, confidential. Put the credentials into `GITLAB_CLIENT_ID` and `GITLAB_CLIENT_SECRET`. Personal access tokens with `api` scope also work for sign-in. Editing requires at least the Developer role on the project.
 
+### Local repository (demos, offline)
+
+Point `GIT_REPO` at an absolute directory path instead of a URL:
+
+```bash
+GIT_REPO=/path/to/wiki
+```
+
+No sign-in setup is needed: the "Sign in" button creates a session for your local git identity (`git config user.name`) directly. Every save is committed to the repository, so history stays intact; if the directory is not a git repository, the wiki still works and simply skips commits. This mode serves files from the server's own disk, so use it locally, not for shared deployments.
+
 ## Run
 
 ```bash
@@ -63,6 +73,8 @@ docker run -p 3000:3000 \
 ```
 
 All configuration is passed as environment variables at runtime; nothing is baked into the image. To build the image yourself: `docker build -t commonplace .`
+
+For a local repository, mount it into the container: `-v /path/to/wiki:/wiki -e GIT_REPO=/wiki` (no client ID/secret needed).
 
 ## MCP server (AI agents)
 
