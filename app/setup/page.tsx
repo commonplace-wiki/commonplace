@@ -40,7 +40,9 @@ export default function SetupPage() {
     callback_urls: [`${origin}/api/auth/callback`],
     request_oauth_on_install: false,
     public: false,
-    default_permissions: { contents: 'write' },
+    // members (read) is what lets @-mentions list the whole organization; the
+    // app degrades to repository collaborators if it is withheld.
+    default_permissions: { contents: 'write', members: 'read' },
   })
 
   function submit(e: React.FormEvent) {

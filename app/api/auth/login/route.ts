@@ -1,10 +1,38 @@
 import crypto from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { getRepoConfig } from '@/lib/config'
+import { getRepoConfig, type RepoConfig } from '@/lib/config'
+import { localLogin } from '@/lib/local'
+import { sessionCookie, type Session } from '@/lib/session'
 import { publicUrl } from '@/lib/url'
+
+/**
+ * A local repository has no identity provider: "signing in" just creates a
+ * session for the machine's git identity, with a generated initial avatar.
+ */
+async function localSignIn(req: NextRequest, config: RepoConfig) {
+  const login = await localLogin(config)
+  const initial = /^[a-z0-9]/i.test(login) ? login[0].toUpperCase() : '?'
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">' +
+    '<rect width="64" height="64" rx="32" fill="#556270"/>' +
+    `<text x="32" y="43" font-family="sans-serif" font-size="30" fill="#fff" text-anchor="middle">${initial}</text>` +
+    '</svg>'
+  const session: Session = {
+    token: 'local',
+    login,
+    avatarUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    authMethod: 'local',
+  }
+  const res = NextResponse.redirect(publicUrl('/', req))
+  res.cookies.set(sessionCookie(session))
+  return res
+}
 
 export async function GET(req: NextRequest) {
   const config = getRepoConfig()
+  if (config?.provider === 'local') {
+    return localSignIn(req, config)
+  }
   const state = crypto.randomBytes(16).toString('hex')
   const callback = publicUrl('/api/auth/callback', req).toString()
 

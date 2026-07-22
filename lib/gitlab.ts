@@ -4,6 +4,7 @@ import {
   GitHubError,
   type FileMeta,
   type LastCommit,
+  type MentionUser,
   type PathMove,
   type RepoFile,
   type TreeEntry,
@@ -424,6 +425,35 @@ export async function rawResponse(
 export async function userInfo(token: string, config: RepoConfig): Promise<{ login: string; avatarUrl: string }> {
   const user = await gl(token, config, '/user')
   return { login: user.username, avatarUrl: user.avatar_url || '' }
+}
+
+/**
+ * Project members, for the editor's @-mention typeahead. Uses /members/all so
+ * members inherited from ancestor and shared groups are included: those are
+ * the same people canWrite() honors through group_access.
+ */
+export async function listCollaborators(token: string, config: RepoConfig): Promise<MentionUser[]> {
+  const users: MentionUser[] = []
+  const seen = new Set<string>()
+  for (let page = 1; page <= 3; page++) {
+    const batch = await gl(token, config, `/projects/${projectId(config)}/members/all?per_page=100&page=${page}`)
+    if (!Array.isArray(batch)) break
+    for (const m of batch) {
+      // access_level 10 is Guest; below that (0) the member has no access.
+      if (!m?.username || m.state !== 'active' || (m.access_level ?? 0) < 10) continue
+      // /members/all lists a user once per source (direct, inherited, shared).
+      if (seen.has(m.username)) continue
+      seen.add(m.username)
+      users.push({
+        login: m.username,
+        name: m.name || null,
+        avatarUrl: m.avatar_url || '',
+        profileUrl: m.web_url || `https://${config.host}/${m.username}`,
+      })
+    }
+    if (batch.length < 100) break
+  }
+  return users
 }
 
 export function webUrl(config: RepoConfig, repoPath: string): string {

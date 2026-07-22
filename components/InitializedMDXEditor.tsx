@@ -50,6 +50,7 @@ import {
   COMMAND_PRIORITY_HIGH,
   KEY_DOWN_COMMAND,
 } from 'lexical'
+import { mentionsPlugin } from './MentionsPlugin'
 
 export interface WikiPageRef {
   path: string
@@ -463,6 +464,7 @@ export default function InitializedMDXEditor({ value, onChange, pageDir, placeho
           codeBlockPlugin({ defaultCodeBlockLanguage: '' }),
           codeMirrorPlugin({ codeBlockLanguages: CODE_LANGUAGES }),
           codeFenceShortcutPlugin(),
+          mentionsPlugin(),
           diffSourcePlugin({ viewMode: sourceOnly ? 'source' : 'rich-text', diffMarkdown: initialMarkdown }),
           markdownShortcutPlugin(),
         ]}

@@ -13,7 +13,7 @@ export interface Session {
   token: string
   login: string
   avatarUrl: string
-  authMethod: 'oauth' | 'github-app' | 'gitlab-oauth' | 'pat'
+  authMethod: 'oauth' | 'github-app' | 'gitlab-oauth' | 'pat' | 'local'
   /** GitHub App / GitLab OAuth tokens expire and come with a refresh token. */
   refreshToken?: string
   /** Epoch ms when `token` expires. */

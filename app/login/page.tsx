@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
-import { repoHomeUrl, type RepoConfig } from '@/components/Shell'
+import { RepoLink, type RepoConfig } from '@/components/Shell'
 
 const ERROR_MESSAGES: Record<string, string> = {
   oauth_unconfigured:
@@ -70,10 +70,7 @@ function Landing() {
       <h1>Commonplace</h1>
       {config && (
         <p className="subtitle">
-          Repository:{' '}
-          <a href={repoHomeUrl(config)} target="_blank" rel="noreferrer">
-            {config.owner}/{config.repo}
-          </a>
+          Repository: <RepoLink config={config} />
           {config.branch && config.branch !== 'main' ? ` @ ${config.branch}` : ''}
           {config.root ? ` /${config.root}` : ''}
         </p>
@@ -88,7 +85,9 @@ function Landing() {
           {oauth && (
             <div className="signin-actions">
               <a href="/api/auth/login" className="btn btn-primary">
-                Sign in with {config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'}
+                {config?.provider === 'local'
+                  ? 'Sign in'
+                  : `Sign in with ${config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'}`}
               </a>
             </div>
           )}
@@ -98,7 +97,7 @@ function Landing() {
               this deployment. <a href="/setup">Set it up</a> or use a personal access token below.
             </p>
           )}
-          {!showTokenSignIn && (
+          {!showTokenSignIn && config?.provider !== 'local' && (
             <button className="link-button muted" onClick={() => setShowTokenSignIn(true)}>
               Other sign-in options
             </button>

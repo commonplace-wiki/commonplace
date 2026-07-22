@@ -19,8 +19,11 @@ export async function GET() {
     login: session.login,
     avatarUrl: session.avatarUrl,
     authMethod: session.authMethod,
-    profileUrl: config?.provider === 'gitlab'
-      ? `https://${config.host}/${session.login}`
-      : `https://github.com/${session.login}`,
+    profileUrl:
+      config?.provider === 'local'
+        ? null
+        : config?.provider === 'gitlab'
+          ? `https://${config.host}/${session.login}`
+          : `https://github.com/${session.login}`,
   })
 }
