@@ -53,6 +53,10 @@ GIT_REPO=/path/to/wiki
 
 No sign-in setup is needed: the "Sign in" button creates a session for your local git identity (`git config user.name`) directly. Every save is committed to the repository, so history stays intact; if the directory is not a git repository, the wiki still works and simply skips commits. This mode serves files from the server's own disk, so use it locally, not for shared deployments.
 
+### Read mirror
+
+For GitHub and GitLab wikis, the server automatically keeps a clone of the repository on local disk and serves all reads from it. Page loads, the sidebar tree, and the graph then cost filesystem reads instead of API round-trips, and stop counting against API rate limits. There is nothing to configure: the clone lives in the system temp directory, syncs in the background (and immediately after every write, so users read their own writes; pushes made directly to the repository appear within a minute), and each reader is still authorized against the provider. If cloning is not possible (no `git` binary, no writable disk), reads transparently use the API instead.
+
 ## Run
 
 ```bash
