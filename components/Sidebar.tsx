@@ -5,6 +5,19 @@ import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWiki, type WikiFile } from './Shell'
 
+/**
+ * "Loading pages…" only appears when the tree is actually slow to arrive;
+ * with the usual fast response it would just flash for a frame or two.
+ */
+function TreeLoading() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 200)
+    return () => clearTimeout(t)
+  }, [])
+  return visible ? <div className="tree-empty">Loading pages…</div> : null
+}
+
 function Chevron() {
   return (
     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -323,7 +336,7 @@ export default function Sidebar({ open = false }: { open?: boolean }) {
       />
       {treeError && <div className="tree-empty">Error: {treeError}</div>}
       {reorderError && <div className="tree-empty">Reorder failed: {reorderError}</div>}
-      {!treeError && files === null && <div className="tree-empty">Loading pages…</div>}
+      {!treeError && files === null && <TreeLoading />}
       {!filtered && files !== null && (
         <div className={`tree-row home${activePath === '' ? ' active' : ''}`}>
           <Link href="/" className="tree-link">

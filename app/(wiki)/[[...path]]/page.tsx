@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import Markdown from '@/components/Markdown'
 import { RepoLink, useWiki } from '@/components/Shell'
 import { invalidateCachedPage, readCachedPage, writeCachedPage } from '@/lib/pageCache'
@@ -26,6 +26,24 @@ interface FileData {
 
 function dirOf(path: string): string {
   return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
+}
+
+// Runs before the browser paints on the client; falls back to useEffect while
+// prerendering on the server, where useLayoutEffect would warn.
+const useClientLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+/**
+ * Loading placeholder that only becomes visible when loading is actually
+ * slow. Most fetches answer within ~50ms, and a loading message that flashes
+ * in and out reads as flicker — nothing at all reads as an instant load.
+ */
+function Loading({ text = 'Loading page…' }: { text?: string }) {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setVisible(true), 200)
+    return () => clearTimeout(t)
+  }, [])
+  return visible ? <p className="muted">{text}</p> : null
 }
 
 /** "just now" / "5 minutes ago" / … within the last 7 days, else the date. */
@@ -133,17 +151,22 @@ function DirectoryListing({ dir }: { dir: string }) {
 
 function FileView({ path }: { path: string }) {
   const { me } = useWiki()
-  // Stale-while-revalidate: the effect paints any cached copy immediately on
-  // mount, and the refetch swaps in the fresh one when it lands. The cache is
-  // deliberately not read during the first render — it is unavailable while
-  // prerendering on the server, so seeding state from it would desync hydration.
+  // Stale-while-revalidate: the layout effect paints any cached copy on the
+  // very first frame — before the browser paints, so a cached page never
+  // flashes a loading state — and the refetch swaps in the fresh one when it
+  // lands. The cache is deliberately not read during render — it is
+  // unavailable while prerendering on the server, so seeding state from it
+  // would desync hydration.
   const [data, setData] = useState<FileData | null>(null)
   const [error, setError] = useState<{ status: number; message: string } | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+  useClientLayoutEffect(() => {
     setData(readCachedPage<FileData>(path))
     setError(null)
+  }, [path])
+
+  useEffect(() => {
+    let cancelled = false
     fetch(`/api/file?path=${encodeURIComponent(path)}`).then(async (res) => {
       const json = await res.json()
       if (cancelled) return
@@ -178,7 +201,7 @@ function FileView({ path }: { path: string }) {
     )
   }
   if (error) return <div className="error-banner">{error.message}</div>
-  if (!data) return <p className="muted">Loading page…</p>
+  if (!data) return <Loading />
 
   const fm = data.frontmatter
   const title =
@@ -376,16 +399,20 @@ function DirectoryView({ dir }: { dir: string }) {
   // to infrastructure/); index.md is OKF-reserved and stays render-only.
   const twinPath = dir ? `${dir}.md` : null
   const hasTwin = twinPath !== null && (files || []).some((f) => f.path === twinPath)
-  // Seeded from the cache in the effect below, not here — see FileView.
+  // Seeded from the cache in the pre-paint effect below, not during render —
+  // see FileView.
   const [index, setIndex] = useState<FileData | null>(null)
 
   useEffect(() => {
     if (hasTwin && twinPath) router.replace(`/${twinPath}`)
   }, [hasTwin, twinPath, router])
 
+  useClientLayoutEffect(() => {
+    setIndex(readCachedPage<FileData>(indexPath))
+  }, [indexPath])
+
   useEffect(() => {
     let cancelled = false
-    setIndex(readCachedPage<FileData>(indexPath))
     if (!hasIndex) return
     fetch(`/api/file?path=${encodeURIComponent(indexPath)}`).then(async (res) => {
       if (cancelled || !res.ok) return
@@ -400,7 +427,7 @@ function DirectoryView({ dir }: { dir: string }) {
 
   const name = dir ? dir.split('/').pop() : settings?.name || 'Home'
 
-  if (hasTwin) return <p className="muted">Loading page…</p>
+  if (hasTwin) return <Loading />
 
   return (
     <div>
@@ -429,9 +456,9 @@ function DirectoryView({ dir }: { dir: string }) {
           </Link>
         )}
       </div>
-      {files === null && <p className="muted">Loading…</p>}
+      {files === null && <Loading text="Loading…" />}
       {files !== null && hasIndex && index && <Markdown content={index.body} baseDir={dir} />}
-      {files !== null && hasIndex && !index && <p className="muted">Loading index…</p>}
+      {files !== null && hasIndex && !index && <Loading text="Loading index…" />}
       {files !== null &&
         !hasIndex &&
         (!dir && files.length === 0 ? <EmptyWiki /> : <DirectoryListing dir={dir} />)}
