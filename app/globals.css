@@ -1141,6 +1141,7 @@ body.sidebar-resizing {
   order: 0;
 }
 .editor-page .error-banner,
+.editor-page .draft-notice,
 .editor-page .fm-panel {
   order: 1;
 }
@@ -1343,6 +1344,27 @@ body.sidebar-resizing {
   padding: 10px 14px;
   margin-bottom: 16px;
   font-size: 14px;
+}
+
+.banner-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.error-banner .conflict-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.error-banner .conflict-actions a {
+  color: inherit;
 }
 
 .muted {

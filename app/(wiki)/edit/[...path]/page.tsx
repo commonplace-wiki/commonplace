@@ -5,9 +5,27 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import MarkdownEditor from '@/components/MarkdownEditor'
 import { useWiki } from '@/components/Shell'
+import { mergeBodies, mergeFrontmatter } from '@/lib/merge'
 import { invalidateCachedPage } from '@/lib/pageCache'
 
 const OKF_KEYS = ['type', 'title', 'description', 'resource', 'tags', 'timestamp']
+
+/**
+ * Unsaved edits, mirrored to localStorage so they survive reloads, expired
+ * sessions, and save conflicts. `baseBody`/`baseFm` snapshot the page as it
+ * was when editing started (the version `sha` points at), which is the base
+ * for three-way merging when someone else saved in the meantime.
+ */
+interface Draft {
+  sha?: string
+  baseBody: string
+  baseFm: Record<string, unknown>
+  body: string
+  fm: Record<string, unknown>
+  tagsText: string
+  extraRows: { key: string; value: string }[]
+  savedAt: string
+}
 
 /** Virtual path segment for title-driven page creation. */
 const NEW_PAGE_SEGMENT = '__new__'
@@ -92,6 +110,9 @@ function Editor() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [conflictPath, setConflictPath] = useState<string | null>(null)
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
+  const [editorKey, setEditorKey] = useState(0)
   const [panel, setPanel] = useState<Panel>(null)
   const [moveOpen, setMoveOpen] = useState(false)
   const [moveDir, setMoveDir] = useState(dirOf(path))
@@ -104,6 +125,81 @@ function Editor() {
   const rowId = useRef(0)
   const actionsRef = useRef<HTMLDivElement>(null)
   const locationRef = useRef<HTMLSpanElement>(null)
+  // The page as it was when editing started: the merge base for conflicting
+  // saves and the reference for deciding whether a draft is worth keeping.
+  const baseRef = useRef<{ body: string; fm: Record<string, unknown> }>({ body: '', fm: {} })
+  // The latest version fetched from the server, for "discard draft".
+  const serverRef = useRef<{ sha?: string; body: string; fm: Record<string, unknown> } | null>(null)
+
+  const draftKey = `commonplace:draft:${isVirtualNew ? `${NEW_PAGE_SEGMENT}?dir=${newDir}` : path}`
+
+  function clearStoredDraft() {
+    try {
+      localStorage.removeItem(draftKey)
+    } catch {
+      // Storage unavailable (private mode, quota): drafts are best effort.
+    }
+  }
+
+  /** Apply a stored draft to the editor state; false when none exists. */
+  function restoreDraft(): boolean {
+    let draft: Draft
+    try {
+      const raw = localStorage.getItem(draftKey)
+      if (!raw) return false
+      draft = JSON.parse(raw)
+    } catch {
+      return false
+    }
+    if (typeof draft?.body !== 'string') return false
+    setSha(draft.sha)
+    setBody(draft.body)
+    setFm(draft.fm && typeof draft.fm === 'object' ? draft.fm : {})
+    setTagsText(typeof draft.tagsText === 'string' ? draft.tagsText : '')
+    setExtraRows(
+      (Array.isArray(draft.extraRows) ? draft.extraRows : []).map((r) => ({
+        id: rowId.current++,
+        key: String(r.key ?? ''),
+        value: String(r.value ?? ''),
+      }))
+    )
+    baseRef.current = {
+      body: typeof draft.baseBody === 'string' ? draft.baseBody : '',
+      fm: draft.baseFm && typeof draft.baseFm === 'object' ? draft.baseFm : {},
+    }
+    setDraftSavedAt(draft.savedAt || null)
+    return true
+  }
+
+  /** Drop the draft and reset the editor to the last version from the server. */
+  function discardDraft() {
+    clearStoredDraft()
+    setDraftSavedAt(null)
+    setError(null)
+    setConflictPath(null)
+    const server = serverRef.current
+    if (server) {
+      setSha(server.sha)
+      setBody(server.body)
+      setFm(server.fm)
+      setTagsText(Array.isArray(server.fm.tags) ? server.fm.tags.join(', ') : '')
+      setExtraRows(
+        Object.entries(server.fm)
+          .filter(([k]) => !OKF_KEYS.includes(k))
+          .map(([k, v]) => ({ id: rowId.current++, key: k, value: displayValue(v) }))
+      )
+      baseRef.current = { body: server.body, fm: server.fm }
+    } else {
+      setSha(undefined)
+      setBody('')
+      setFm({ type: settings?.default_type || '', title: '', description: '', resource: '' })
+      setTagsText('')
+      setExtraRows([])
+      baseRef.current = { body: '', fm: {} }
+    }
+    // The markdown editor only reads `value` on mount; remount to show the reset.
+    setEditorKey((k) => k + 1)
+  }
 
   useEffect(() => {
     setTargetDir(newDir)
@@ -132,18 +228,20 @@ function Editor() {
     async function load() {
       if (isVirtualNew) {
         setIsNew(true)
-        setFm({ type: '', title: '', description: '', resource: '' })
+        if (!restoreDraft()) setFm({ type: '', title: '', description: '', resource: '' })
         setLoaded(true)
         return
       }
       if (searchParams.get('new') === '1') {
         setIsNew(true)
-        setFm({
-          type: searchParams.get('type') || '',
-          title: searchParams.get('title') || '',
-          description: '',
-          resource: '',
-        })
+        if (!restoreDraft()) {
+          setFm({
+            type: searchParams.get('type') || '',
+            title: searchParams.get('title') || '',
+            description: '',
+            resource: '',
+          })
+        }
         setLoaded(true)
         return
       }
@@ -151,7 +249,7 @@ function Editor() {
       if (cancelled) return
       if (res.status === 404) {
         setIsNew(true)
-        setFm({ type: '', title: '', description: '', resource: '' })
+        if (!restoreDraft()) setFm({ type: '', title: '', description: '', resource: '' })
         setLoaded(true)
         return
       }
@@ -161,17 +259,21 @@ function Editor() {
         setLoaded(true)
         return
       }
-      setSha(data.sha)
-      setBody(data.body)
       const frontmatter = data.frontmatter || {}
-      setFm(frontmatter)
+      serverRef.current = { sha: data.sha, body: data.body, fm: frontmatter }
       setOriginalTitle(typeof frontmatter.title === 'string' ? frontmatter.title : '')
-      setTagsText(Array.isArray(frontmatter.tags) ? frontmatter.tags.join(', ') : '')
-      setExtraRows(
-        Object.entries(frontmatter)
-          .filter(([k]) => !OKF_KEYS.includes(k))
-          .map(([k, v]) => ({ id: rowId.current++, key: k, value: displayValue(v) }))
-      )
+      if (!restoreDraft()) {
+        setSha(data.sha)
+        setBody(data.body)
+        setFm(frontmatter)
+        setTagsText(Array.isArray(frontmatter.tags) ? frontmatter.tags.join(', ') : '')
+        setExtraRows(
+          Object.entries(frontmatter)
+            .filter(([k]) => !OKF_KEYS.includes(k))
+            .map(([k, v]) => ({ id: rowId.current++, key: k, value: displayValue(v) }))
+        )
+        baseRef.current = { body: data.body, fm: frontmatter }
+      }
       setLoaded(true)
     }
     load()
@@ -180,6 +282,46 @@ function Editor() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, searchParams, isVirtualNew])
+
+  // Mirror unsaved edits to localStorage (debounced). The draft disappears
+  // again as soon as the editor matches the version it was loaded from.
+  useEffect(() => {
+    if (!loaded) return
+    const timer = setTimeout(() => {
+      const base = baseRef.current
+      const untouchedNew =
+        (isNew || isVirtualNew) && !body.trim() && !(typeof fm.title === 'string' && fm.title.trim())
+      const baseTags = Array.isArray(base.fm.tags) ? base.fm.tags.join(', ') : ''
+      const baseExtras = Object.entries(base.fm)
+        .filter(([k]) => !OKF_KEYS.includes(k))
+        .map(([k, v]) => [k, displayValue(v)])
+      const dirty =
+        body !== base.body ||
+        tagsText !== baseTags ||
+        JSON.stringify(extraRows.map((r) => [r.key, r.value])) !== JSON.stringify(baseExtras) ||
+        ['type', 'title', 'description', 'resource'].some((k) => (fm[k] ?? '') !== (base.fm[k] ?? ''))
+      try {
+        if (untouchedNew || !dirty) {
+          localStorage.removeItem(draftKey)
+        } else {
+          const draft: Draft = {
+            sha,
+            baseBody: base.body,
+            baseFm: base.fm,
+            body,
+            fm,
+            tagsText,
+            extraRows: extraRows.map((r) => ({ key: r.key, value: r.value })),
+            savedAt: new Date().toISOString(),
+          }
+          localStorage.setItem(draftKey, JSON.stringify(draft))
+        }
+      } catch {
+        // Storage unavailable: drafts are best effort.
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [loaded, body, fm, tagsText, extraRows, sha, isNew, isVirtualNew, draftKey])
 
   function field(key: string): string {
     const value = fm[key]
@@ -200,10 +342,10 @@ function Editor() {
     return `${slug}.md`
   }
 
-  async function save(opts: { rename?: boolean } = {}) {
+  async function save(opts: { rename?: boolean; overwrite?: boolean } = {}) {
     // A changed title raises the question whether the file should follow.
     const renameTo = pendingRename()
-    if (renameTo && opts.rename === undefined) {
+    if (renameTo && opts.rename === undefined && !opts.overwrite) {
       setPanel('rename')
       return
     }
@@ -226,6 +368,7 @@ function Editor() {
     }
     setSaving(true)
     setError(null)
+    setConflictPath(null)
     setPanel(null)
     const tags = tagsText
       .split(',')
@@ -254,17 +397,54 @@ function Editor() {
           ...extrasObj,
           tags,
         }
-    const res = await fetch('/api/file', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: targetPath, body, frontmatter, sha, message, updateLog }),
-    })
-    const data = await res.json().catch(() => ({}))
+    const putPage = (putBody: string, putFrontmatter: Record<string, unknown> | null, putSha?: string) =>
+      fetch('/api/file', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: targetPath, body: putBody, frontmatter: putFrontmatter, sha: putSha, message, updateLog }),
+      })
+    const fetchLatest = async () => {
+      const latestRes = await fetch(`/api/file?path=${encodeURIComponent(targetPath)}`)
+      const latest = await latestRes.json().catch(() => ({}))
+      return latestRes.ok ? latest : null
+    }
+
+    let saveSha = sha
+    if (opts.overwrite) {
+      // Deliberate "keep mine" after a conflict: save on top of the latest version.
+      const latest = await fetchLatest()
+      if (latest && typeof latest.sha === 'string') saveSha = latest.sha
+    }
+    let res = await putPage(body, frontmatter, saveSha)
+    let data = await res.json().catch(() => ({}))
+    if (res.status === 409 && !opts.overwrite) {
+      // The page changed since it was loaded. When their edits and ours touch
+      // different lines (and different frontmatter keys), merge the two and
+      // retry against the new sha; overlapping edits stay a conflict.
+      const latest = await fetchLatest()
+      if (latest && typeof latest.body === 'string') {
+        const mergedBody = mergeBodies(baseRef.current.body, body, latest.body)
+        const mergedFm =
+          frontmatter === null ? null : mergeFrontmatter(baseRef.current.fm, frontmatter, latest.frontmatter || {})
+        if (mergedBody !== null && (frontmatter === null || mergedFm !== null)) {
+          res = await putPage(mergedBody, mergedFm, latest.sha)
+          data = await res.json().catch(() => ({}))
+        }
+      }
+    }
     if (!res.ok) {
       setSaving(false)
-      setError(data.error || 'Save failed')
+      if (res.status === 409) {
+        setConflictPath(targetPath)
+        setError(
+          'Someone else changed this page while you were editing, and their changes overlap with yours. Your text is kept as a local draft.'
+        )
+      } else {
+        setError(data.error || 'Save failed')
+      }
       return
     }
+    clearStoredDraft()
     // The cached copy is now stale, and the save response does not carry
     // enough (footer commit, provider URLs) to prime a correct replacement.
     invalidateCachedPage(targetPath)
@@ -310,6 +490,7 @@ function Editor() {
     })
     setDeleting(false)
     if (res.ok) {
+      clearStoredDraft()
       invalidateCachedPage(path)
       refreshTree()
       router.push(`/${dirOf(path)}`)
@@ -353,6 +534,8 @@ function Editor() {
     const data = await res.json().catch(() => ({}))
     setMoving(false)
     if (res.ok) {
+      // Moving discards unsaved edits (the form says so), including the draft.
+      clearStoredDraft()
       // Both ends of the move: the source is gone, the target is new.
       invalidateCachedPage(path)
       invalidateCachedPage(data.path)
@@ -379,6 +562,8 @@ function Editor() {
   // Keyboard: Cmd/Ctrl+Enter publishes, Esc closes popovers, then the editor.
   const saveRef = useRef(save)
   saveRef.current = save
+  const discardRef = useRef(clearStoredDraft)
+  discardRef.current = clearStoredDraft
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -388,7 +573,11 @@ function Editor() {
         setPanel((current) => {
           if (current) return null
           setMoveOpen((open) => {
-            if (!open) router.push(cancelHref)
+            if (!open) {
+              // Closing the editor abandons the edit, draft included.
+              discardRef.current()
+              router.push(cancelHref)
+            }
             return false
           })
           return null
@@ -485,7 +674,7 @@ function Editor() {
         )}
         <div className="topbar-spacer" />
         <div className="editor-actions" ref={actionsRef}>
-          <Link className="cancel-link" href={cancelHref} title="Close editor (Esc)">
+          <Link className="cancel-link" href={cancelHref} title="Close editor (Esc)" onClick={clearStoredDraft}>
             Cancel
           </Link>
           <button
@@ -690,7 +879,29 @@ function Editor() {
         </div>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <div className="error-banner">
+          {error}
+          {conflictPath && (
+            <div className="conflict-actions">
+              <a href={`/${conflictPath}`} target="_blank" rel="noreferrer">
+                Open the latest version in a new tab
+              </a>
+              <button className="banner-btn" onClick={() => save({ overwrite: true })} disabled={saving}>
+                {saving ? 'Saving…' : 'Save anyway, replacing their changes'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {draftSavedAt && (
+        <div className="notice draft-notice">
+          Restored unsaved changes from {new Date(draftSavedAt).toLocaleString()}.{' '}
+          <button className="banner-btn" onClick={discardDraft}>
+            Discard them and load the saved page
+          </button>
+        </div>
+      )}
 
       {moveOpen && !isNew && (
         <form className="fm-panel" onSubmit={move}>
@@ -748,6 +959,7 @@ function Editor() {
       )}
 
       <MarkdownEditor
+        key={editorKey}
         value={body}
         onChange={setBody}
         pageDir={pageDir}
