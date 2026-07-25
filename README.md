@@ -4,6 +4,8 @@ An open-source wiki and Confluence alternative.
 
 Idea: Keep your knowledge in a Git repository, following [Open Knowledge Format (OKF)](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md). Commonplace acts as a nice UI.
 
+Documentation: [commonplace.wiki](https://www.commonplace.wiki), itself a Commonplace wiki served from the [commonplace-wiki/knowledgebase](https://github.com/commonplace-wiki/knowledgebase) repository.
+
 
 ## Features
 
@@ -26,6 +28,17 @@ docker run -p 3000:3000 \
 ```
 
 Open http://localhost:3000. If the repository is public, the wiki is browsable right away. Click "Sign in" to enable editing: the guided `/setup` flow creates a GitHub App with the right settings in one click, or you sign in directly with a personal access token (Contents read/write). To see Commonplace with content in it before connecting your own repository, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
+
+To try Commonplace without connecting any remote repository, serve a local folder:
+
+```bash
+mkdir wiki && git init -q wiki
+docker run -p 3000:3000 \
+  -v $(pwd)/wiki:/wiki -e GIT_REPO=/wiki \
+  commonplacewiki/commonplace
+```
+
+No sign-in setup is needed in this mode: the "Sign in" button works immediately, and every saved page becomes a git commit in `./wiki`.
 
 For anything beyond a local test, also set `SESSION_SECRET` (`openssl rand -hex 32`) so session cookies cannot be forged, and `PUBLIC_ORIGIN` (e.g. `https://wiki.example.com`) when running behind a reverse proxy.
 
