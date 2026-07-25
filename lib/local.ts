@@ -82,6 +82,7 @@ function isGitRepo(dir: string): Promise<boolean> {
 // not silently produce an empty wiki. Never applies to derived local configs
 // like the read mirror — see RepoConfig.autoCreate.
 const ensureCache = new Map<string, Promise<void>>()
+const warnedDirs = new Set<string>()
 
 function ensureDir(config: RepoConfig): Promise<void> {
   if (!config.autoCreate) return Promise.resolve()
@@ -104,7 +105,21 @@ function ensureDir(config: RepoConfig): Promise<void> {
           `(e.g. -v /path/on/host:${dir}) to keep it.`
       )
     })()
-    cached.catch(() => ensureCache.delete(dir)) // retry on the next request
+    cached.catch((err) => {
+      ensureCache.delete(dir) // retry on the next request
+      // Say it once: silently missing means the app renders an innocent
+      // "empty wiki" with a puzzling not-writable banner and no clue why.
+      if (!warnedDirs.has(dir)) {
+        warnedDirs.add(dir)
+        const detail = err instanceof Error ? err.message : String(err)
+        console.warn(
+          `Cannot create the wiki repository directory ${dir} (${detail}). The wiki reads as ` +
+            `empty and saving will fail. Create the directory yourself, or choose a writable ` +
+            `location — in Docker e.g. GIT_REPO=/tmp/wiki, or mount a host folder ` +
+            `(-v /path/on/host:${dir}).`
+        )
+      }
+    })
     ensureCache.set(dir, cached)
   }
   return cached
