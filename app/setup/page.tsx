@@ -234,11 +234,13 @@ export default function SetupPage() {
             type="url"
             value={deployUrl}
             onChange={(e) => setDeployUrl(e.target.value)}
+            placeholder="https://wiki.example.com"
             required
           />
           <div className="hint">
-            Where this Commonplace deployment runs (or will run), as users reach it. Sign-in
-            redirects back to this URL.
+            Where your Commonplace deployment runs (or will run), as users reach it. Sign-in
+            redirects back to this URL. For trying it out locally, use{' '}
+            <code>http://localhost:3000</code>.
           </div>
         </div>
       )}
