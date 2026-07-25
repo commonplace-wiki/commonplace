@@ -11,10 +11,9 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 - **Just a frontend**: Commonplace is a stateless frontend. Everything is persisted in your Git repository.
 - **GitHub and GitLab**: Works with repositories on github.com, gitlab.com, or a self-hosted GitLab. The provider's login and permission model controls who has read and write access to the wiki. Support for public and private repos.
 - **Open Knowledge Format**: Google's universal format to collect knowledge and relationships.
-- **Page ordering**: Drag pages in the sidebar to reorder them. The order is stored in `.commonplace/order.yaml`; pages not listed there sort alphabetically.
 - **Markdown Editor**: A nice editor with just the right feature set. Good support for code snippets, drag & drop, screenshots and rich formatting. Files are committed to an `assets/` folder next to the page.
+- **Knowledge Graph**: An interactive graph of all pages, connected by the links between them and the folder structure.
 - **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents.
-- **Search engines**: A wiki on a public repository serves `sitemap.xml`, a crawler-friendly `robots.txt`, and per-page titles (`Page - Wiki Name - Commonplace`). A wiki on a private repository tells crawlers to stay away entirely.
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
 ## Quickstart (Local Git Repository)
