@@ -151,6 +151,42 @@ function UserMenu({ me, onLogout }: { me: Me; onLogout: () => void }) {
   )
 }
 
+/**
+ * First-run screen for a deployment without GIT_REPO. Without it, the main
+ * area would sit on a loading state forever with the actual problem tucked
+ * into a sidebar error line.
+ */
+function Unconfigured() {
+  return (
+    <div className="landing">
+      <h1>Welcome to Commonplace</h1>
+      <p className="subtitle">
+        One thing is missing: the Git repository that holds (or will hold) your wiki.
+      </p>
+      <div className="card">
+        <p style={{ marginTop: 0 }}>
+          Set <code>GIT_REPO</code> in the environment and restart, e.g.
+        </p>
+        <pre>
+          {'docker run -p 3000:3000 \\\n' +
+            '  -e GIT_REPO=https://github.com/owner/repo \\\n' +
+            '  commonplacewiki/commonplace'}
+        </pre>
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Public and private repositories on github.com or GitLab work, as does an absolute path to
+          a local folder. A public repository is readable immediately; sign-in for editing is set up
+          afterwards under <code>/setup</code>.
+        </p>
+      </div>
+      <p className="muted">
+        <a href="https://www.commonplace.wiki/getting-started.md" target="_blank" rel="noreferrer">
+          Getting started guide
+        </a>
+      </p>
+    </div>
+  )
+}
+
 export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -164,6 +200,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return p
   })()
   const [me, setMe] = useState<Me | null>(null)
+  /** True when /api/config reported that GIT_REPO is not set at all. */
+  const [unconfigured, setUnconfigured] = useState(false)
   // Mobile nav drawer: hidden on wide screens, slides in over the content
   // when the topbar hamburger is tapped.
   const [navOpen, setNavOpen] = useState(false)
@@ -260,7 +298,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       if (cancelled) return
       const cfgData = await cfgRes.json()
       if (!cfgData.config) {
-        setTreeError('This deployment has no wiki repository configured (set GIT_REPO).')
+        setTreeError('No wiki repository configured.')
+        setUnconfigured(true)
         setAuthResolved(true)
         return
       }
@@ -295,10 +334,6 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       cancelled = true
     }
   }, [router, fetchTree, refreshSettings])
-
-  useEffect(() => {
-    if (settings !== null) document.title = settings.name || 'Commonplace'
-  }, [settings])
 
   // Close the mobile drawer whenever the route changes (a nav link was tapped).
   useEffect(() => {
@@ -407,7 +442,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 : 'If sign-in uses a GitHub App, install it on this repository (App settings → Install App); with a personal access token, grant it Contents read/write on this repository.'}
           </div>
         )}
-        {children}
+        {unconfigured ? <Unconfigured /> : children}
       </main>
     </WikiContext.Provider>
   )

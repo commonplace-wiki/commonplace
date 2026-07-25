@@ -17,7 +17,19 @@ Idea: Keep your knowledge in a Git repository, following [Open Knowledge Format 
 - **Search engines**: A wiki on a public repository serves `sitemap.xml`, a crawler-friendly `robots.txt`, and per-page titles (`Page - Wiki Name - Commonplace`). A wiki on a private repository tells crawlers to stay away entirely.
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
-## Local Setup
+## Quickstart
+
+```bash
+docker run -p 3000:3000 \
+  -e GIT_REPO=https://github.com/owner/repo \
+  commonplacewiki/commonplace
+```
+
+Open http://localhost:3000. If the repository is public, the wiki is browsable right away. Click "Sign in" to enable editing: the guided `/setup` flow creates a GitHub App with the right settings in one click, or you sign in directly with a personal access token (Contents read/write). To see Commonplace with content in it before connecting your own repository, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
+
+For anything beyond a local test, also set `SESSION_SECRET` (`openssl rand -hex 32`) so session cookies cannot be forged, and `PUBLIC_ORIGIN` (e.g. `https://wiki.example.com`) when running behind a reverse proxy.
+
+## Local Setup (from source)
 
 ```bash
 npm install
@@ -66,18 +78,18 @@ npm run dev
 
 Open http://localhost:3000 and sign in. Start writing.
 
-## Docker
+## Docker (full configuration)
 
 ```bash
 docker run -p 3000:3000 \
-  -e SESSION_SECRET=$(openssl rand -hex 32) \
+  -e SESSION_SECRET=... \
   -e GIT_REPO=https://github.com/owner/repo \
   -e GITHUB_CLIENT_ID=... \
   -e GITHUB_CLIENT_SECRET=... \
   commonplacewiki/commonplace
 ```
 
-All configuration is passed as environment variables at runtime; nothing is baked into the image. To build the image yourself: `docker build -t commonplace .`
+All configuration is passed as environment variables at runtime; nothing is baked into the image. Generate `SESSION_SECRET` once (`openssl rand -hex 32`) and keep it stable, so signed-in users survive container restarts. To build the image yourself: `docker build -t commonplace .`
 
 For a local repository, mount it into the container: `-v /path/to/wiki:/wiki -e GIT_REPO=/wiki` (no client ID/secret needed).
 
