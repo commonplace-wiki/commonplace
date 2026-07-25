@@ -32,17 +32,21 @@ Open http://localhost:3000. The "Sign in" button works immediately, and every sa
 
 ## Quickstart (GitHub)
 
-Point the app at the repository that holds (or will hold) your wiki:
+The production setup: the wiki lives in a GitHub repository, and every edit is a commit by a signed-in GitHub user.
 
 ```bash
 docker run -p 3000:3000 \
   -e GIT_REPO=https://github.com/owner/repo \
+  -e GITHUB_CLIENT_ID=... \
+  -e GITHUB_CLIENT_SECRET=... \
+  -e SESSION_SECRET=... \
+  -e PUBLIC_ORIGIN=https://wiki.example.com \
   commonplacewiki/commonplace
 ```
 
-Open http://localhost:3000. If the repository is public, the wiki is browsable right away. Click "Sign in" to enable editing: the guided `/setup` flow creates a GitHub App with the right settings in one click, or you sign in directly with a personal access token (Contents read/write). To see Commonplace with content in it before connecting your own repository, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
+The client ID and secret belong to a GitHub App. The wizard at [commonplace.wiki/setup](https://www.commonplace.wiki/setup) creates it in one click and hands you this environment fully filled in — the credentials are converted directly in your browser and never touch that server. The same wizard runs on your own deployment at `/setup`.
 
-For anything beyond a local test, also set `SESSION_SECRET` (`openssl rand -hex 32`) so session cookies cannot be forged, and `PUBLIC_ORIGIN` (e.g. `https://wiki.example.com`) when running behind a reverse proxy.
+If the repository is public, the wiki is readable without signing in; reading a private repository and editing require it. Sign-in also works without an app, using a personal access token with Contents read/write. To see Commonplace with content in it, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
 
 ## Local Setup (from source)
 
