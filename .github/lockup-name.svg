@@ -1,3 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 378 64" font-family="Inter, &#39;Inter Variable&#39;, system-ui, sans-serif">
-
-<path d="M 44.73 44.73 A 18 18 0 1 1 44.73 19.27" fill="none" stroke="#111111" stroke-width="13"></path><circle cx="32" cy="32" r="7" fill="#4f46e5"></circle><text x="78" y="32" dominant-baseline="central" font-size="40" letter-spacing="-1" font-weight="800" fill="#111111">Commonplace</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 378 64" font-family="Inter, 'Inter Variable', system-ui, sans-serif">
+  <style>
+    .ink { fill: #111111; }
+    .arc { stroke: #111111; }
+    .dot { fill: #4f46e5; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #ffffff; }
+      .arc { stroke: #ffffff; }
+      .dot { fill: #818cf8; }
+    }
+  </style>
+  <path class="arc" d="M 44.73 44.73 A 18 18 0 1 1 44.73 19.27" fill="none" stroke-width="13"/>
+  <circle class="dot" cx="32" cy="32" r="7"/>
+  <text class="ink" x="78" y="32" dominant-baseline="central" font-size="40" letter-spacing="-1" font-weight="800">Commonplace</text>
+</svg>

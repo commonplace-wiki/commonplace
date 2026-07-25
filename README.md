@@ -1,7 +1,4 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/lockup-name-dark.svg">
-  <img src=".github/lockup-name.svg" alt="Commonplace" width="400">
-</picture>
+<img src=".github/lockup-name.svg" alt="Commonplace" width="400">
 
 Commonplace is an open-source wiki, knowledge base and Confluence alternative, based on a Git repository following [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), with a nice UI.
 
