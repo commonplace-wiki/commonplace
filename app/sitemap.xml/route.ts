@@ -24,10 +24,18 @@ function xmlEscape(s: string): string {
     .replace(/'/g, '&apos;')
 }
 
+// Never prerender: a build-time render would bake the build machine's view
+// of the repository's visibility into a static response for good.
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   const config = getRepoConfig()
   if (!config || !(await anonymousReadable(config))) {
-    return new NextResponse('Not found', { status: 404 })
+    // Cached briefly so a transient wrong answer cannot stick at a CDN edge.
+    return new NextResponse('Not found', {
+      status: 404,
+      headers: { 'Cache-Control': 'public, max-age=300' },
+    })
   }
   try {
     const { files } = await listMarkdownFiles(null, config)

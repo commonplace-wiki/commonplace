@@ -14,6 +14,10 @@ import { anonymousReadable } from '@/lib/visibility'
  * wiki content like /settings.md or /login.md crawlable; crawlers that treat
  * it literally simply ignore those lines, which fails open.
  */
+// Never prerender: a build-time render would bake the build machine's view
+// of the repository's visibility into a static response for good.
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   const config = getRepoConfig()
   const lines =
@@ -34,7 +38,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(lines.join('\n') + '\n', {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'public, max-age=300',
     },
   })
 }
