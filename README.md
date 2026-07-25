@@ -22,7 +22,7 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 The fastest way to try Commonplace, no accounts and no sign-in setup:
 
 ```bash
-wiki=$(mktemp -d) && git init -q "$wiki"
+wiki=$(mktemp -d) && git init -q "$wiki" && echo "Wiki repository: $wiki"
 docker run -p 3000:3000 \
   -v "$wiki":/wiki -e GIT_REPO=/wiki \
   commonplacewiki/commonplace
