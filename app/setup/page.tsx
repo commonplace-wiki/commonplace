@@ -251,7 +251,7 @@ export default function SetupPage() {
     { key: 'GIT_REPO', value: canonicalRepoUrl || '…' },
     { key: 'SESSION_SECRET', value: sessionSecret || '…' },
     ...(cleanDeploy && !isLocalhost(cleanDeploy)
-      ? [{ key: 'PUBLIC_ORIGIN', value: cleanDeploy }]
+      ? [{ key: 'DEPLOYMENT_URL', value: cleanDeploy }]
       : []),
   ]
 
@@ -267,10 +267,11 @@ export default function SetupPage() {
           {commonFields}
           <EnvBlock
             vars={[{ key: 'GIT_REPO', value: canonicalRepoUrl || '…' }]}
+            mount={{ hostPath: canonicalRepoUrl || '/path/to/wiki', containerPath: '/wiki' }}
           />
           <p className="muted">
-            In Docker, mount the folder and point <code>GIT_REPO</code> at the mount path, e.g.{' '}
-            <code>-v /path/to/wiki:/wiki -e GIT_REPO=/wiki</code>.
+            The docker command mounts your folder into the container and points{' '}
+            <code>GIT_REPO</code> at the mount path.
           </p>
         </div>
       </div>
@@ -383,7 +384,7 @@ export default function SetupPage() {
             { key: 'GITHUB_CLIENT_SECRET', value: '…' },
             { key: 'SESSION_SECRET', value: sessionSecret || '…' },
             ...(cleanDeploy && !isLocalhost(cleanDeploy)
-              ? [{ key: 'PUBLIC_ORIGIN', value: cleanDeploy }]
+              ? [{ key: 'DEPLOYMENT_URL', value: cleanDeploy }]
               : []),
           ]}
         />

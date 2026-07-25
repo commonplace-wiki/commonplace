@@ -55,13 +55,26 @@ function shellQuote(value: string): string {
 
 /**
  * The wizard's final output: the deployment's environment, as a plain env
- * block and as a ready-to-run docker command.
+ * block and as a ready-to-run docker command. With `mount`, the docker
+ * variant mounts the host folder into the container and points GIT_REPO at
+ * the mount path — a host path in GIT_REPO would not exist inside the
+ * container; the plain env block keeps the host path.
  */
-export default function EnvBlock({ vars }: { vars: EnvVar[] }) {
+export default function EnvBlock({
+  vars,
+  mount,
+}: {
+  vars: EnvVar[]
+  mount?: { hostPath: string; containerPath: string }
+}) {
   const envText = vars.map((v) => `${v.key}=${v.value}`).join('\n')
+  const dockerVars = mount
+    ? vars.map((v) => (v.key === 'GIT_REPO' ? { ...v, value: mount.containerPath } : v))
+    : vars
   const dockerText =
     'docker run -p 3000:3000 \\\n' +
-    vars.map((v) => `  -e ${v.key}=${shellQuote(v.value)} \\`).join('\n') +
+    (mount ? `  -v ${shellQuote(mount.hostPath)}:${mount.containerPath} \\\n` : '') +
+    dockerVars.map((v) => `  -e ${v.key}=${shellQuote(v.value)} \\`).join('\n') +
     '\n  commonplacewiki/commonplace'
   return (
     <div>

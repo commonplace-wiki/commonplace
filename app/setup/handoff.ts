@@ -11,7 +11,7 @@ export interface SetupHandoff {
 
 export const HANDOFF_KEY = 'cp_setup'
 
-/** PUBLIC_ORIGIN matters wherever a proxy might sit; skip it only for localhost. */
+/** DEPLOYMENT_URL matters wherever a proxy might sit; skip it only for localhost. */
 export function isLocalhost(url: string): boolean {
   try {
     return ['localhost', '127.0.0.1'].includes(new URL(url).hostname)

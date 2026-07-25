@@ -8,12 +8,12 @@ import type { NextRequest } from 'next/server'
  *
  * The forwarded headers are client-controllable unless the proxy overwrites
  * them, so a spoofed `X-Forwarded-Host` would otherwise flow into OAuth
- * redirect URIs and other absolute links. Set PUBLIC_ORIGIN to the real
+ * redirect URIs and other absolute links. Set DEPLOYMENT_URL to the real
  * external origin (e.g. https://wiki.example.com) to pin it and ignore the
  * headers entirely.
  */
 export function publicOrigin(req: NextRequest): string {
-  const configured = process.env.PUBLIC_ORIGIN?.trim().replace(/\/+$/, '')
+  const configured = process.env.DEPLOYMENT_URL?.trim().replace(/\/+$/, '')
   if (configured) return configured
   const host = req.headers.get('x-forwarded-host') || req.headers.get('host')
   if (!host) return new URL(req.url).origin

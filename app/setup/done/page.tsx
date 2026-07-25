@@ -113,7 +113,7 @@ function Done() {
             { key: 'GITHUB_CLIENT_SECRET', value: result.client_secret },
             { key: 'SESSION_SECRET', value: handoff.sessionSecret },
             ...(handoff.deployUrl && !isLocalhost(handoff.deployUrl)
-              ? [{ key: 'PUBLIC_ORIGIN', value: handoff.deployUrl }]
+              ? [{ key: 'DEPLOYMENT_URL', value: handoff.deployUrl }]
               : []),
           ]}
         />
