@@ -277,7 +277,6 @@ export default function SetupPage() {
 
   if (provider === 'gitlab') {
     const host = parsed?.host || 'gitlab.com'
-    const haveCredentials = glId.trim() !== '' && glSecret.trim() !== ''
     return (
       <div className="landing">
         <h1>Set up GitLab sign-in</h1>
@@ -311,7 +310,7 @@ export default function SetupPage() {
               <strong>Confidential</strong> checked, scope <code>api</code> selected.
             </li>
           </ul>
-          <h2>2. Paste the credentials</h2>
+          <h2>2. Paste the credentials (optional)</h2>
           <div className="field">
             <label>Application ID</label>
             <input value={glId} onChange={(e) => setGlId(e.target.value)} />
@@ -320,27 +319,24 @@ export default function SetupPage() {
             <label>Secret</label>
             <input value={glSecret} onChange={(e) => setGlSecret(e.target.value)} />
           </div>
-          {haveCredentials ? (
-            <>
-              <h2>3. Start your deployment</h2>
-              <EnvBlock
-                vars={[
-                  ...sharedEnv,
-                  { key: 'GITLAB_CLIENT_ID', value: glId.trim() },
-                  { key: 'GITLAB_CLIENT_SECRET', value: glSecret.trim() },
-                  ...(host !== 'gitlab.com' ? [{ key: 'GIT_PROVIDER', value: 'gitlab' }] : []),
-                ]}
-              />
-              <p className="muted" style={{ marginBottom: 0 }}>
-                Set the environment, restart, and sign in. Editing requires at least the Developer
-                role on the project.
-              </p>
-            </>
-          ) : (
-            <p className="muted" style={{ marginBottom: 0 }}>
-              The complete environment for your deployment appears here once both values are in.
-            </p>
-          )}
+          <p className="muted">
+            Pasting them here only completes the block below in your browser; nothing is sent
+            anywhere. If you prefer, leave the fields empty and fill the two values into the
+            environment yourself.
+          </p>
+          <h2>3. Start your deployment</h2>
+          <EnvBlock
+            vars={[
+              ...sharedEnv,
+              { key: 'GITLAB_CLIENT_ID', value: glId.trim() || '…' },
+              { key: 'GITLAB_CLIENT_SECRET', value: glSecret.trim() || '…' },
+              ...(host !== 'gitlab.com' ? [{ key: 'GIT_PROVIDER', value: 'gitlab' }] : []),
+            ]}
+          />
+          <p className="muted" style={{ marginBottom: 0 }}>
+            Set the environment, restart, and sign in. Editing requires at least the Developer role
+            on the project.
+          </p>
         </div>
         <p className="muted">
           Alternatively, <a href="/login?token=1">sign in with a personal access token</a> (
