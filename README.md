@@ -48,6 +48,8 @@ The client ID and secret belong to a GitHub App. The wizard at [commonplace.wiki
 
 If the repository is public, the wiki is readable without signing in; reading a private repository and editing require it. Sign-in also works without an app, using a personal access token with Contents read/write. To see Commonplace with content in it, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
 
+All configuration is passed as environment variables at runtime; nothing is baked into the image (`docker build -t commonplace .` to build it yourself).
+
 ## Local Setup (from source)
 
 ```bash
@@ -96,21 +98,6 @@ npm run dev
 ```
 
 Open http://localhost:3000 and sign in. Start writing.
-
-## Docker (full configuration)
-
-```bash
-docker run -p 3000:3000 \
-  -e SESSION_SECRET=... \
-  -e GIT_REPO=https://github.com/owner/repo \
-  -e GITHUB_CLIENT_ID=... \
-  -e GITHUB_CLIENT_SECRET=... \
-  commonplacewiki/commonplace
-```
-
-All configuration is passed as environment variables at runtime; nothing is baked into the image. Generate `SESSION_SECRET` once (`openssl rand -hex 32`) and keep it stable, so signed-in users survive container restarts. To build the image yourself: `docker build -t commonplace .`
-
-For a local repository, mount it into the container: `-v /path/to/wiki:/wiki -e GIT_REPO=/wiki` (no client ID/secret needed).
 
 ## MCP server (AI agents)
 
