@@ -13,7 +13,7 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 - **Open Knowledge Format**: Google's universal format to collect knowledge and relationships.
 - **Markdown Editor**: A nice editor with just the right feature set. Good support for code snippets, drag & drop, screenshots and rich formatting. Files are committed to an `assets/` folder next to the page.
 - **Knowledge Graph**: An interactive graph of all pages, connected by the links between them and the folder structure.
-- **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents.
+- **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents. See the [MCP docs](https://www.commonplace.wiki/mcp.md).
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
 ## Try locally
@@ -59,14 +59,3 @@ npm run dev
 ```
 
 Open http://localhost:3000 and sign in. The `/setup` wizard creates the GitHub App for sign-in and emits the values for `.env.local`; a personal access token with Contents read/write works with no app at all. All environment variables are documented in [Configuration](https://www.commonplace.wiki/configuration.md).
-
-## MCP server (AI agents)
-
-The deployment exposes an MCP server (Streamable HTTP) at `/api/mcp` with three tools: `search_pages` (content, title, tag, and type search), `get_page` (frontmatter, body, and the blob sha), and `save_page` (create or update as a git commit, with required `type`, automatic `timestamp`, a `log.md` entry, and sha-based conflict detection).
-
-Authenticate with a GitHub or GitLab token in the `Authorization` header; reads work without a token when the wiki repository is public. For Claude Code:
-
-```bash
-claude mcp add --transport http wiki http://localhost:3000/api/mcp \
-  --header "Authorization: Bearer github_pat_…"
-```
