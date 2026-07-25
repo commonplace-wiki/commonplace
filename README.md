@@ -16,7 +16,7 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 - **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents.
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
-## Quickstart (Local Git Repository)
+## Try locally
 
 The fastest way to try Commonplace, no accounts and no sign-in setup:
 
