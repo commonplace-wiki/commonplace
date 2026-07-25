@@ -24,6 +24,20 @@ export default function SetupPage() {
         if (data?.config?.provider === 'gitlab') {
           setProvider('gitlab')
           setHost(data.config.host)
+          return
+        }
+        // Prefill the organization from the wiki repository's owner — but
+        // only when that owner really is an organization: for a personal
+        // account, GitHub's org app-creation URL would 404. The public users
+        // API tells them apart and allows anonymous browser requests.
+        const owner = data?.config?.owner
+        if (data?.config?.provider === 'github' && owner) {
+          fetch(`https://api.github.com/users/${encodeURIComponent(owner)}`)
+            .then((res) => (res.ok ? res.json() : null))
+            .then((user) => {
+              if (user?.type === 'Organization') setOrg((prev) => prev || owner)
+            })
+            .catch(() => {})
         }
       })
       .catch(() => {})
