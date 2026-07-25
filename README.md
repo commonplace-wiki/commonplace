@@ -54,32 +54,11 @@ For GitLab wikis (gitlab.com or self-hosted), see the [GitLab guide](https://www
 
 ```bash
 npm install
-cp .env.example .env.local
-```
-
-Create a GitHub App for sign-in. The easy way: start the app (`npm run dev`) and open http://localhost:3000/setup — it creates the app on GitHub with the right settings in one click and shows you the credentials. Manually instead: https://github.com/settings/apps/new with
-
-- Homepage URL: `http://localhost:3000`
-- Callback URL: `http://localhost:3000/api/auth/callback`
-- Webhook: unchecked
-- Repository permissions: Contents read and write (Metadata read-only is added automatically)
-- Organization permissions: Members read-only (optional; lets @-mentions list everyone in the organization instead of just the repository's collaborators)
-
-Then install the app on the wiki repository (App settings → Install App).
-
-Put the client ID and a generated client secret into `.env.local`, along with a random `SESSION_SECRET` (`openssl rand -hex 32`).
-
-Point the deployment at the wiki repository with `GIT_REPO=https://github.com/owner/repo` (plus optional `GIT_BRANCH` and `GIT_ROOT` for a subdirectory). The URL's host determines the provider: `github.com` or `gitlab.com` (bare `owner/repo` works as a GitHub shorthand; for a self-hosted GitLab, additionally set `GIT_PROVIDER=gitlab`). Each deployment serves exactly one repository, and pages are served from the root path (`/how_to/onboarding.md`). If the repository is public, visitors can read the wiki without signing in; edit actions appear once they use the "Sign in" button.
-
-If you skip the GitHub App setup entirely, you can still sign in with a personal access token: a fine-grained token with Contents read/write on the wiki repository (recommended), or a classic token with `repo` scope.
-
-## Run
-
-```bash
+cp .env.example .env.local   # set at least GIT_REPO
 npm run dev
 ```
 
-Open http://localhost:3000 and sign in. Start writing.
+Open http://localhost:3000 and sign in. The `/setup` wizard creates the GitHub App for sign-in and emits the values for `.env.local`; a personal access token with Contents read/write works with no app at all. All environment variables are documented in [Configuration](https://www.commonplace.wiki/configuration.md).
 
 ## MCP server (AI agents)
 
