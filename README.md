@@ -71,24 +71,6 @@ Point the deployment at the wiki repository with `GIT_REPO=https://github.com/ow
 
 If you skip the GitHub App setup entirely, you can still sign in with a personal access token: a fine-grained token with Contents read/write on the wiki repository (recommended), or a classic token with `repo` scope.
 
-### GitLab
-
-For a GitLab wiki repository, create an OAuth application instead (User or Group Settings → Applications, or open `/setup` for guided instructions): redirect URI `http://localhost:3000/api/auth/callback`, scope `api`, confidential. Put the credentials into `GITLAB_CLIENT_ID` and `GITLAB_CLIENT_SECRET`. Personal access tokens with `api` scope also work for sign-in. Editing requires at least the Developer role on the project.
-
-### Local repository (demos, offline)
-
-Point `GIT_REPO` at an absolute directory path instead of a URL:
-
-```bash
-GIT_REPO=/path/to/wiki
-```
-
-No sign-in setup is needed: the "Sign in" button creates a session for your local git identity (`git config user.name`) directly. Every save is committed to the repository, so history stays intact; if the directory is not a git repository, the wiki still works and simply skips commits. This mode serves files from the server's own disk, so use it locally, not for shared deployments.
-
-### Read mirror
-
-For GitHub and GitLab wikis, the server automatically keeps a clone of the repository on local disk and serves all reads from it. Page loads, the sidebar tree, and the graph then cost filesystem reads instead of API round-trips, and stop counting against API rate limits. There is nothing to configure: the clone lives in the system temp directory, syncs in the background (and immediately after every write, so users read their own writes; pushes made directly to the repository appear within a minute), and each reader is still authorized against the provider. If cloning is not possible (no `git` binary, no writable disk), reads transparently use the API instead.
-
 ## Run
 
 ```bash
