@@ -38,8 +38,7 @@ docker run -p 3000:3000 \
   -e GIT_REPO=https://github.com/owner/repo \
   -e GITHUB_CLIENT_ID=... \
   -e GITHUB_CLIENT_SECRET=... \
-  -e SESSION_SECRET=... \
-  -e PUBLIC_ORIGIN=https://wiki.example.com \
+  -e SESSION_SECRET=$(openssl rand -hex 32) \
   commonplacewiki/commonplace
 ```
 
