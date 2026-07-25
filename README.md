@@ -17,17 +17,9 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 - **Search engines**: A wiki on a public repository serves `sitemap.xml`, a crawler-friendly `robots.txt`, and per-page titles (`Page - Wiki Name - Commonplace`). A wiki on a private repository tells crawlers to stay away entirely.
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
-## Quickstart
+## Quickstart (Local Git Repository)
 
-```bash
-docker run -p 3000:3000 \
-  -e GIT_REPO=https://github.com/owner/repo \
-  commonplacewiki/commonplace
-```
-
-Open http://localhost:3000. If the repository is public, the wiki is browsable right away. Click "Sign in" to enable editing: the guided `/setup` flow creates a GitHub App with the right settings in one click, or you sign in directly with a personal access token (Contents read/write). To see Commonplace with content in it before connecting your own repository, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
-
-To try Commonplace without connecting any remote repository, serve a local folder:
+The fastest way to try Commonplace, no accounts and no sign-in setup:
 
 ```bash
 mkdir wiki && git init -q wiki
@@ -36,7 +28,19 @@ docker run -p 3000:3000 \
   commonplacewiki/commonplace
 ```
 
-No sign-in setup is needed in this mode: the "Sign in" button works immediately, and every saved page becomes a git commit in `./wiki`.
+Open http://localhost:3000. The "Sign in" button works immediately, and every saved page becomes a git commit in `./wiki`.
+
+## Quickstart (GitHub)
+
+Point the app at the repository that holds (or will hold) your wiki:
+
+```bash
+docker run -p 3000:3000 \
+  -e GIT_REPO=https://github.com/owner/repo \
+  commonplacewiki/commonplace
+```
+
+Open http://localhost:3000. If the repository is public, the wiki is browsable right away. Click "Sign in" to enable editing: the guided `/setup` flow creates a GitHub App with the right settings in one click, or you sign in directly with a personal access token (Contents read/write). To see Commonplace with content in it before connecting your own repository, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
 
 For anything beyond a local test, also set `SESSION_SECRET` (`openssl rand -hex 32`) so session cookies cannot be forged, and `PUBLIC_ORIGIN` (e.g. `https://wiki.example.com`) when running behind a reverse proxy.
 
