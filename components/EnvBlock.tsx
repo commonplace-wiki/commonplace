@@ -26,6 +26,28 @@ function CopyButton({ text }: { text: string }) {
   )
 }
 
+/** A code value with an inline copy affordance, for values that must be transcribed elsewhere. */
+export function CopyableCode({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <span style={{ whiteSpace: 'nowrap' }}>
+      <code>{text}</code>{' '}
+      <button
+        type="button"
+        className="link-button muted"
+        onClick={() => {
+          navigator.clipboard.writeText(text).then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1500)
+          })
+        }}
+      >
+        {copied ? 'copied' : 'copy'}
+      </button>
+    </span>
+  )
+}
+
 function shellQuote(value: string): string {
   if (value === '…') return value // placeholder for a not-yet-entered value
   return /^[A-Za-z0-9_./:=-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`

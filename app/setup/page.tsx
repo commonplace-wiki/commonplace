@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import EnvBlock, { type EnvVar } from '@/components/EnvBlock'
+import EnvBlock, { CopyableCode, type EnvVar } from '@/components/EnvBlock'
 import { parseRepoUrl } from '@/lib/config'
 import { HANDOFF_KEY, isLocalhost, type SetupHandoff } from './handoff'
 
@@ -231,30 +231,41 @@ export default function SetupPage() {
 
   if (provider === 'gitlab') {
     const host = parsed?.host || 'gitlab.com'
+    const haveCredentials = glId.trim() !== '' && glSecret.trim() !== ''
     return (
       <div className="landing">
         <h1>Set up GitLab sign-in</h1>
         <p className="subtitle">
           GitLab has no one-click app creation, so this takes one manual step: create an OAuth
-          application, then paste its credentials here to get the complete environment.
+          application, paste its credentials, and take the complete environment with you.
         </p>
         <div className="card">
           {commonFields}
-          <ol style={{ margin: '0 0 16px', paddingLeft: 20, display: 'grid', gap: 8 }}>
+          <h2>1. Create the OAuth application</h2>
+          <p>
+            Open{' '}
+            <a href={`https://${host}/-/user_settings/applications`} target="_blank" rel="noreferrer">
+              https://{host}/-/user_settings/applications
+            </a>{' '}
+            (or a group-owned application under the group settings) and add an application with:
+          </p>
+          <ul style={{ margin: '0 0 16px', paddingLeft: 20, display: 'grid', gap: 8 }}>
             <li>
-              Open{' '}
-              <a href={`https://${host}/-/user_settings/applications`} target="_blank" rel="noreferrer">
-                https://{host}/-/user_settings/applications
-              </a>{' '}
-              (or a group-owned application under the group settings).
+              Name: <CopyableCode text="Commonplace" />
             </li>
             <li>
-              Redirect URI: <code>{cleanDeploy || '…'}/api/auth/callback</code>
+              Redirect URI:{' '}
+              {cleanDeploy ? (
+                <CopyableCode text={`${cleanDeploy}/api/auth/callback`} />
+              ) : (
+                <span className="muted">fill in the deployment URL above first</span>
+              )}
             </li>
             <li>
-              Check <strong>Confidential</strong> and select the <code>api</code> scope.
+              <strong>Confidential</strong> checked, scope <code>api</code> selected.
             </li>
-          </ol>
+          </ul>
+          <h2>2. Paste the credentials</h2>
           <div className="field">
             <label>Application ID</label>
             <input value={glId} onChange={(e) => setGlId(e.target.value)} />
@@ -263,18 +274,27 @@ export default function SetupPage() {
             <label>Secret</label>
             <input value={glSecret} onChange={(e) => setGlSecret(e.target.value)} />
           </div>
-          <EnvBlock
-            vars={[
-              ...sharedEnv,
-              { key: 'GITLAB_CLIENT_ID', value: glId || '…' },
-              { key: 'GITLAB_CLIENT_SECRET', value: glSecret || '…' },
-              ...(host !== 'gitlab.com' ? [{ key: 'GIT_PROVIDER', value: 'gitlab' }] : []),
-            ]}
-          />
-          <p className="muted">
-            Set the environment, restart, and sign in. Editing requires at least the Developer role
-            on the project.
-          </p>
+          {haveCredentials ? (
+            <>
+              <h2>3. Start your deployment</h2>
+              <EnvBlock
+                vars={[
+                  ...sharedEnv,
+                  { key: 'GITLAB_CLIENT_ID', value: glId.trim() },
+                  { key: 'GITLAB_CLIENT_SECRET', value: glSecret.trim() },
+                  ...(host !== 'gitlab.com' ? [{ key: 'GIT_PROVIDER', value: 'gitlab' }] : []),
+                ]}
+              />
+              <p className="muted" style={{ marginBottom: 0 }}>
+                Set the environment, restart, and sign in. Editing requires at least the Developer
+                role on the project.
+              </p>
+            </>
+          ) : (
+            <p className="muted" style={{ marginBottom: 0 }}>
+              The complete environment for your deployment appears here once both values are in.
+            </p>
+          )}
         </div>
         <p className="muted">
           Alternatively, <a href="/login?token=1">sign in with a personal access token</a> (
