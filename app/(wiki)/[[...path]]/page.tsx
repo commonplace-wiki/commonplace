@@ -1,477 +1,87 @@
-'use client'
-
-import Link from 'next/link'
-import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import Markdown from '@/components/Markdown'
-import { RepoLink, useWiki } from '@/components/Shell'
-import { invalidateCachedPage, readCachedPage, writeCachedPage } from '@/lib/pageCache'
-
-interface FileData {
-  path: string
-  sha: string
-  frontmatter: Record<string, unknown> | null
-  body: string
-  isReserved: boolean
-  htmlUrl: string | null
-  historyUrl?: string | null
-  lastCommit?: {
-    date: string
-    name: string
-    login: string | null
-    avatarUrl: string | null
-    authorUrl?: string | null
-  } | null
-}
-
-function dirOf(path: string): string {
-  return path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
-}
-
-// Runs before the browser paints on the client; falls back to useEffect while
-// prerendering on the server, where useLayoutEffect would warn.
-const useClientLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+import type { Metadata } from 'next'
+import yaml from 'js-yaml'
+import { fullPath, getRepoConfig, type RepoConfig } from '@/lib/config'
+import { parseConcept } from '@/lib/okf'
+import { getFile } from '@/lib/repo'
+import { getSession } from '@/lib/session'
+import WikiPage from './WikiPage'
 
 /**
- * Loading placeholder that only becomes visible when loading is actually
- * slow. Most fetches answer within ~50ms, and a loading message that flashes
- * in and out reads as flicker — nothing at all reads as an instant load.
+ * Server wrapper whose only job is the document <title>: "Page - Wiki Name -
+ * Commonplace", most specific first, following the Confluence convention
+ * ("Page - Space - Confluence"). Rendering stays in the WikiPage client
+ * component; the reads here are usually served by the mirror clone, so the
+ * title costs disk reads, not API calls.
  */
-function Loading({ text = 'Loading page…' }: { text?: string }) {
-  const [visible, setVisible] = useState(false)
-  useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 200)
-    return () => clearTimeout(t)
-  }, [])
-  return visible ? <p className="muted">{text}</p> : null
+
+/** Give a slow provider API at most this long before the title falls back. */
+const METADATA_TIMEOUT_MS = 2000
+
+function withTimeout<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    promise.catch(() => fallback),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), METADATA_TIMEOUT_MS).unref?.()),
+  ])
 }
 
-/** "just now" / "5 minutes ago" / … within the last 7 days, else the date. */
-function formatUpdated(iso: string): string {
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return iso.slice(0, 10)
-  const minutes = Math.floor((Date.now() - then) / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  const days = Math.floor(hours / 24)
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days} days ago`
-  return iso.slice(0, 10)
-}
-
-function FrontmatterCard({ fm }: { fm: Record<string, unknown> }) {
-  const { settings } = useWiki()
-  const rawType = typeof fm.type === 'string' ? fm.type : null
-  // The default type carries no information; only show distinctive types.
-  const type = rawType && rawType !== (settings?.default_type || 'Wiki Page') ? rawType : null
-  const tags = Array.isArray(fm.tags) ? fm.tags.filter((t) => typeof t === 'string') : []
-  const resource = typeof fm.resource === 'string' ? fm.resource : null
-  if (!type && tags.length === 0 && !resource) return null
-  return (
-    <div className="meta-card">
-      {type && <span className="type-badge">{type}</span>}
-      {tags.length > 0 && (
-        <span>
-          {tags.map((t) => (
-            <span key={t as string} className="tag">
-              {t as string}
-            </span>
-          ))}
-        </span>
-      )}
-      {resource && (
-        <span>
-          resource:{' '}
-          {/^https?:\/\//.test(resource) ? (
-            <a href={resource} target="_blank" rel="noreferrer">
-              {resource}
-            </a>
-          ) : (
-            <code>{resource}</code>
-          )}
-        </span>
-      )}
-    </div>
-  )
-}
-
-function DirectoryListing({ dir }: { dir: string }) {
-  const { files, me } = useWiki()
-  const prefix = dir ? `${dir}/` : ''
-  const { childDirs, childFiles } = useMemo(() => {
-    const dirs = new Set<string>()
-    const direct: { name: string; title: string }[] = []
-    for (const f of files || []) {
-      if (f.hidden) continue
-      if (prefix && !f.path.startsWith(prefix)) continue
-      const rest = f.path.slice(prefix.length)
-      if (rest === 'README.md' || rest === 'index.md' || rest === 'log.md') continue
-      const slash = rest.indexOf('/')
-      if (slash === -1) direct.push({ name: rest, title: f.title || rest.replace(/\.md$/, '').replace(/[-_]/g, ' ') })
-      else dirs.add(rest.slice(0, slash))
-    }
-    return {
-      childDirs: [...dirs].sort(),
-      childFiles: direct.sort((a, b) => a.title.localeCompare(b.title)),
-    }
-  }, [files, prefix])
-
-  if (childDirs.length === 0 && childFiles.length === 0) {
-    return (
-      <p className="muted">
-        This directory has no pages yet.
-        {me && (
-          <>
-            {' '}
-            <Link href={`/edit/__new__?dir=${encodeURIComponent(dir)}`}>Create one.</Link>
-          </>
-        )}
-      </p>
-    )
+async function readSettings(
+  token: string | null,
+  config: RepoConfig
+): Promise<{ name: string; description: string }> {
+  const file = await getFile(token, config, fullPath(config, '.commonplace/settings.yaml'))
+  const parsed = yaml.load(file.content) as { name?: unknown; description?: unknown } | null
+  return {
+    name: typeof parsed?.name === 'string' ? parsed.name.trim() : '',
+    description: typeof parsed?.description === 'string' ? parsed.description.trim() : '',
   }
-  return (
-    <ul className="dir-listing">
-      {childDirs.map((d) => (
-        <li key={d}>
-          <span className="dir-icon">📁</span>
-          <Link href={`/${prefix}${d}`}>{d.replace(/[-_]/g, ' ')}/</Link>
-        </li>
-      ))}
-      {childFiles.map((f) => (
-        <li key={f.name}>
-          <span className="dir-icon">📄</span>
-          <Link href={`/${prefix}${f.name}`}>{f.title}</Link>
-        </li>
-      ))}
-    </ul>
-  )
 }
 
-function FileView({ path }: { path: string }) {
-  const { me } = useWiki()
-  // Stale-while-revalidate: the layout effect paints any cached copy on the
-  // very first frame — before the browser paints, so a cached page never
-  // flashes a loading state — and the refetch swaps in the fresh one when it
-  // lands. The cache is deliberately not read during render — it is
-  // unavailable while prerendering on the server, so seeding state from it
-  // would desync hydration.
-  const [data, setData] = useState<FileData | null>(null)
-  const [error, setError] = useState<{ status: number; message: string } | null>(null)
-
-  useClientLayoutEffect(() => {
-    setData(readCachedPage<FileData>(path))
-    setError(null)
-  }, [path])
-
-  useEffect(() => {
-    let cancelled = false
-    fetch(`/api/file?path=${encodeURIComponent(path)}`).then(async (res) => {
-      const json = await res.json()
-      if (cancelled) return
-      if (res.ok) {
-        setData(json)
-        writeCachedPage(path, json)
-      } else {
-        // A page that is gone must not keep rendering from cache.
-        if (res.status === 404) invalidateCachedPage(path)
-        setData(null)
-        setError({ status: res.status, message: json.error || 'Failed to load' })
-      }
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [path])
-
-  if (error && error.status === 404) {
-    return (
-      <div>
-        <h1 className="page-title">Page not found</h1>
-        <p className="muted">
-          <code>{path}</code> does not exist on this branch.
-        </p>
-        {me && (
-          <Link className="btn btn-primary" href={`/edit/${path}?new=1`}>
-            Create this page
-          </Link>
-        )}
-      </div>
-    )
+async function readPage(
+  token: string | null,
+  config: RepoConfig,
+  path: string
+): Promise<{ title: string | null; description: string | null }> {
+  const file = await getFile(token, config, fullPath(config, path))
+  const fm = parseConcept(file.content).frontmatter
+  return {
+    title: fm && typeof fm.title === 'string' && fm.title ? fm.title : null,
+    description: fm && typeof fm.description === 'string' ? fm.description.trim() || null : null,
   }
-  if (error) return <div className="error-banner">{error.message}</div>
-  if (!data) return <Loading />
-
-  const fm = data.frontmatter
-  const title =
-    fm && typeof fm.title === 'string' && fm.title
-      ? fm.title
-      : (path.split('/').pop() || path).replace(/\.md$/, '')
-  const description = fm && typeof fm.description === 'string' ? fm.description.trim() : null
-  // Migrated pages often carry the body's first paragraph as their description;
-  // showing it twice back-to-back reads as a bug, so suppress the duplicate.
-  const descriptionIsDuplicate = !!description && data.body.trimStart().startsWith(description)
-
-  return (
-    <div>
-      <div className="page-actions">
-        <h1 className="page-title" style={{ marginRight: 'auto' }}>
-          {title}
-        </h1>
-        {me && (
-          <Link className="btn" href={`/edit/${path}`}>
-            Edit
-          </Link>
-        )}
-      </div>
-      {description && !descriptionIsDuplicate && <p className="description">{description}</p>}
-      {fm && !data.isReserved && <FrontmatterCard fm={fm} />}
-      <Markdown content={data.body} baseDir={dirOf(path)} />
-      <footer className="page-footer">
-        {data.lastCommit ? (
-          <span className="footer-updated">
-            {data.lastCommit.avatarUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={data.lastCommit.avatarUrl} alt="" className="footer-avatar" />
-            )}
-            <span>
-              Updated{' '}
-              <time dateTime={data.lastCommit.date} title={data.lastCommit.date}>
-                {formatUpdated(data.lastCommit.date)}
-              </time>{' '}
-              by{' '}
-              {data.lastCommit.authorUrl ? (
-                <a href={data.lastCommit.authorUrl} target="_blank" rel="noreferrer">
-                  {data.lastCommit.name}
-                </a>
-              ) : (
-                data.lastCommit.name
-              )}
-            </span>
-          </span>
-        ) : (
-          fm &&
-          typeof fm.timestamp === 'string' && (
-            <span className="footer-updated">
-              Updated{' '}
-              <time dateTime={fm.timestamp} title={fm.timestamp}>
-                {formatUpdated(fm.timestamp)}
-              </time>
-            </span>
-          )
-        )}
-        <span className="footer-spacer" />
-        {data.htmlUrl && (
-          <a href={data.htmlUrl} target="_blank" rel="noreferrer">
-            View on GitHub
-          </a>
-        )}
-        {data.historyUrl && (
-          <a href={data.historyUrl} target="_blank" rel="noreferrer">
-            History
-          </a>
-        )}
-      </footer>
-    </div>
-  )
 }
 
-interface LogEntry {
-  date: string
-  action: string
-  title: string
-  path: string | null
-}
-
-/** Parse the OKF log.md body: "## YYYY-MM-DD" headings with bullet entries. */
-function parseLog(body: string, limit: number): LogEntry[] {
-  const entries: LogEntry[] = []
-  let date = ''
-  for (const line of body.split('\n')) {
-    if (entries.length >= limit) break
-    const heading = line.match(/^##\s+(\d{4}-\d{2}-\d{2})/)
-    if (heading) {
-      date = heading[1]
-      continue
-    }
-    const bullet = line.match(/^[*-]\s+(.*)$/)
-    if (!bullet) continue
-    const detail = bullet[1].match(/^\*\*(\w+)\*\*:\s*\w+\s*\[([^\]]*)\]\(([^)]+)\)\.?\s*$/)
-    if (detail) entries.push({ date, action: detail[1], title: detail[2], path: detail[3] })
-    else entries.push({ date, action: '', title: bullet[1].replace(/\*\*/g, ''), path: null })
-  }
-  return entries
-}
-
-const LOG_VERBS: Record<string, string> = {
-  Creation: 'Created',
-  Update: 'Modified',
-  Deletion: 'Deleted',
-  Move: 'Moved',
-}
-
-/** "today" / "yesterday" / "3 days ago" for date-only log entries. */
-function formatLogDate(date: string): string {
-  const now = new Date()
-  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  const days = Math.round((midnight - new Date(`${date}T00:00:00`).getTime()) / 86_400_000)
-  if (days <= 0) return 'today'
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days} days ago`
-  return date
-}
-
-/** Friendly onboarding for a wiki whose repository has no pages yet. */
-function EmptyWiki() {
-  const { me, config } = useWiki()
-  return (
-    <div className="empty-wiki">
-      <p>
-        This repository
-        {config && (
-          <>
-            {' '}
-            (<RepoLink config={config} />)
-          </>
-        )}{' '}
-        is empty.
-      </p>
-      {me ? (
-        <>
-          <Link className="btn btn-primary" href="/edit/__new__">
-            Create the first page
-          </Link>
-          <p className="muted">
-            Saving commits the page to the repository — the branch is created with it if needed.
-          </p>
-        </>
-      ) : (
-        <p className="muted">Sign in to create the first page.</p>
-      )}
-    </div>
-  )
-}
-
-/** Last few log.md entries, shown at the bottom of the wiki root page. */
-function RecentChanges() {
-  const { files } = useWiki()
-  const hasLog = (files || []).some((f) => f.path === 'log.md')
-  const [entries, setEntries] = useState<LogEntry[] | null>(null)
-
-  useEffect(() => {
-    if (!hasLog) return
-    fetch('/api/file?path=log.md').then(async (res) => {
-      if (res.ok) setEntries(parseLog((await res.json()).body, 7))
-    })
-  }, [hasLog])
-
-  if (!hasLog || !entries || entries.length === 0) return null
-  return (
-    <section className="recent-changes">
-      <h2>Recent changes</h2>
-      <ul>
-        {entries.map((e, i) => (
-          <li key={i}>
-            {e.action && <span className="muted">{LOG_VERBS[e.action] || e.action} </span>}
-            {e.path && e.action !== 'Deletion' ? (
-              <Link href={`/${e.path.replace(/^\/+/, '')}`}>{e.title}</Link>
-            ) : (
-              e.title
-            )}
-            {e.date && <span className="muted"> · {formatLogDate(e.date)}</span>}
-          </li>
-        ))}
-      </ul>
-      <Link href="/log.md" className="muted">
-        View full log
-      </Link>
-    </section>
-  )
-}
-
-function DirectoryView({ dir }: { dir: string }) {
-  const { files, settings, me } = useWiki()
-  const router = useRouter()
-  const indexPath = dir ? `${dir}/index.md` : 'index.md'
-  const hasIndex = (files || []).some((f) => f.path === indexPath)
-  // The folder's own page is its Confluence-style twin (infrastructure.md next
-  // to infrastructure/); index.md is OKF-reserved and stays render-only.
-  const twinPath = dir ? `${dir}.md` : null
-  const hasTwin = twinPath !== null && (files || []).some((f) => f.path === twinPath)
-  // Seeded from the cache in the pre-paint effect below, not during render —
-  // see FileView.
-  const [index, setIndex] = useState<FileData | null>(null)
-
-  useEffect(() => {
-    if (hasTwin && twinPath) router.replace(`/${twinPath}`)
-  }, [hasTwin, twinPath, router])
-
-  useClientLayoutEffect(() => {
-    setIndex(readCachedPage<FileData>(indexPath))
-  }, [indexPath])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!hasIndex) return
-    fetch(`/api/file?path=${encodeURIComponent(indexPath)}`).then(async (res) => {
-      if (cancelled || !res.ok) return
-      const json = await res.json()
-      setIndex(json)
-      writeCachedPage(indexPath, json)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [indexPath, hasIndex])
-
-  const name = dir ? dir.split('/').pop() : settings?.name || 'Home'
-
-  if (hasTwin) return <Loading />
-
-  return (
-    <div>
-      <div className="page-actions">
-        <h1 className="page-title" style={{ marginRight: 'auto' }}>
-          {name}
-        </h1>
-        {me && hasIndex && (
-          <Link className="btn" href={`/edit/${indexPath}`}>
-            Edit
-          </Link>
-        )}
-        {me && !hasIndex && dir && (
-          <Link
-            className="btn btn-primary"
-            href={`/edit/${twinPath}?new=1&title=${encodeURIComponent(
-              (dir.split('/').pop() || dir).replace(/[-_]/g, ' ')
-            )}`}
-          >
-            Create page
-          </Link>
-        )}
-        {me && !hasIndex && !dir && (
-          <Link className="btn" href={`/edit/${indexPath}?new=1`}>
-            Add index.md
-          </Link>
-        )}
-      </div>
-      {files === null && <Loading text="Loading…" />}
-      {files !== null && hasIndex && index && <Markdown content={index.body} baseDir={dir} />}
-      {files !== null && hasIndex && !index && <Loading text="Loading index…" />}
-      {files !== null &&
-        !hasIndex &&
-        (!dir && files.length === 0 ? <EmptyWiki /> : <DirectoryListing dir={dir} />)}
-      {!dir && <RecentChanges />}
-    </div>
-  )
-}
-
-export default function WikiPage() {
-  const params = useParams<{ path?: string[] }>()
-  const segments = (params.path || []).map((s) => decodeURIComponent(s))
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ path?: string[] }>
+}): Promise<Metadata> {
+  const segments = ((await params).path || []).map((s) => decodeURIComponent(s))
   const path = segments.join('/')
   const isFile = path.endsWith('.md')
+  // Fallbacks that need no repository read, matching the client's headings.
+  let pageTitle = path ? (segments[segments.length - 1] || path).replace(/\.md$/, '') : ''
+  let name = ''
+  let description: string | null = null
 
-  return isFile ? <FileView key={path} path={path} /> : <DirectoryView key={path} dir={path} />
+  const config = getRepoConfig()
+  if (config) {
+    const token = (await getSession())?.token ?? null
+    const none = { title: null, description: null }
+    const [settings, page] = await Promise.all([
+      withTimeout(readSettings(token, config), { name: '', description: '' }),
+      isFile ? withTimeout(readPage(token, config, path), none) : Promise.resolve(none),
+    ])
+    name = settings.name
+    if (page.title) pageTitle = page.title
+    description = page.description || (path ? null : settings.description || null)
+  }
+
+  // A wiki named "Commonplace" (or a page titled like the wiki) would repeat
+  // itself in the title; drop the duplicate part.
+  const parts = [path ? pageTitle : null, name, 'Commonplace'].filter(Boolean) as string[]
+  const title = parts.filter((p, i) => p !== parts[i - 1]).join(' - ')
+  return description ? { title, description } : { title }
+}
+
+export default function Page() {
+  return <WikiPage />
 }

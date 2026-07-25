@@ -14,6 +14,7 @@ Idea: Keep your knowledge in a Git repository, following [Open Knowledge Format 
 - **Page ordering**: Drag pages in the sidebar to reorder them. The order is stored in `.commonplace/order.yaml`; pages not listed there sort alphabetically.
 - **Markdown Editor**: A nice editor with just the right feature set. Good support for code snippets, drag & drop, screenshots and rich formatting. Files are committed to an `assets/` folder next to the page.
 - **MCP server**: `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents.
+- **Search engines**: A wiki on a public repository serves `sitemap.xml`, a crawler-friendly `robots.txt`, and per-page titles (`Page - Wiki Name - Commonplace`). A wiki on a private repository tells crawlers to stay away entirely.
 - **Confluence Migration Skill**: Ask your coding agent to run the [confluence-to-commonplace skill](.claude/skills/confluence-to-commonplace/SKILL.md) to migrate a Confluence space into your wiki.
 
 ## Local Setup
