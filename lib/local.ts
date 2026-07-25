@@ -98,6 +98,11 @@ function ensureDir(config: RepoConfig): Promise<void> {
       await fs.mkdir(dir)
       // Best effort: without git the wiki still works, commit-less.
       await git(dir, ['init', '--quiet']).catch(() => {})
+      console.warn(
+        `Created the wiki repository directory ${dir}. In a container without a volume mount, ` +
+          `the wiki is lost when the container is removed — mount a host folder ` +
+          `(e.g. -v /path/on/host:${dir}) to keep it.`
+      )
     })()
     cached.catch(() => ensureCache.delete(dir)) // retry on the next request
     ensureCache.set(dir, cached)
