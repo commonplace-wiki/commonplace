@@ -1522,3 +1522,19 @@ body.sidebar-resizing {
   width: 22px;
   color: var(--text-subtle);
 }
+
+/* Setup wizard: environment output blocks */
+.env-block {
+  position: relative;
+  margin-bottom: 12px;
+}
+.env-block pre {
+  background: #f2f4f6;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 76px 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

@@ -27,6 +27,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 function shellQuote(value: string): string {
+  if (value === '…') return value // placeholder for a not-yet-entered value
   return /^[A-Za-z0-9_./:=-]*$/.test(value) ? value : `'${value.replace(/'/g, `'\\''`)}'`
 }
 
@@ -43,12 +44,12 @@ export default function EnvBlock({ vars }: { vars: EnvVar[] }) {
   return (
     <div>
       <p style={{ marginBottom: 4 }}>Environment variables:</p>
-      <div style={{ position: 'relative' }}>
+      <div className="env-block">
         <pre>{envText}</pre>
         <CopyButton text={envText} />
       </div>
       <p style={{ marginBottom: 4 }}>Or as a docker command:</p>
-      <div style={{ position: 'relative' }}>
+      <div className="env-block">
         <pre>{dockerText}</pre>
         <CopyButton text={dockerText} />
       </div>
