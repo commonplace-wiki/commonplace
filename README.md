@@ -48,6 +48,8 @@ If the repository is public, the wiki is readable without signing in; reading a 
 
 All configuration is passed as environment variables at runtime; nothing is baked into the image (`docker build -t commonplace .` to build it yourself).
 
+For GitLab wikis (gitlab.com or self-hosted), see the [GitLab guide](https://www.commonplace.wiki/Git-Repositories/gitlab.md). Additional installation methods, such as [Kubernetes](https://www.commonplace.wiki/Installation/install-on-kubernetes.md), [Azure](https://www.commonplace.wiki/Installation/install-on-azure.md), and [Vercel](https://www.commonplace.wiki/Installation/install-on-vercel.md), are covered in the [Installation docs](https://www.commonplace.wiki/Installation).
+
 ## Local Setup (from source)
 
 ```bash
