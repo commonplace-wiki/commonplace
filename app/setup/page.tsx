@@ -123,8 +123,11 @@ export default function SetupPage() {
   useEffect(() => {
     if (!parsed || parsed.provider === 'local' || !parsed.owner) return
     const suggestion = `Commonplace (${parsed.owner})`.slice(0, 34)
-    setName((prev) => (prev === autoName.current ? suggestion : prev))
+    // Capture before mutating: the setName updater runs on the next render,
+    // when the ref would already hold the new suggestion.
+    const previousSuggestion = autoName.current
     autoName.current = suggestion
+    setName((prev) => (prev === previousSuggestion ? suggestion : prev))
   }, [parsed])
 
   const manifest = JSON.stringify({
