@@ -33,8 +33,10 @@ export default function SetupPage() {
   const [glSecret, setGlSecret] = useState('')
   const [sessionSecret, setSessionSecret] = useState('')
   const [repoNote, setRepoNote] = useState<string | null>(null)
-  /** Provider of the deployment's own config; parseRepoUrl alone cannot spot a self-hosted GitLab. */
-  const [configProvider, setConfigProvider] = useState<string | null>(null)
+  /** The explicitly chosen provider — the wizard's first question. */
+  const [selected, setSelected] = useState<'github' | 'gitlab' | 'local'>('github')
+  /** Once the visitor picked a provider themselves, config defaults keep out. */
+  const providerTouched = useRef(false)
   const formRef = useRef<HTMLFormElement>(null)
   /** Last auto-suggested app name, so typing wins over suggestions. */
   const autoName = useRef('Commonplace')
@@ -42,11 +44,11 @@ export default function SetupPage() {
   const parsed = useMemo(() => {
     const p = parseRepoUrl(repoUrl)
     if (p) return p
-    // A self-hosted GitLab host is indistinguishable from an unsupported one
-    // by URL (that is what GIT_PROVIDER exists for server-side, where this
-    // page cannot see it). When this deployment says it serves GitLab, treat
-    // unrecognized https URLs the same way.
-    if (configProvider !== 'gitlab') return null
+    // With the provider chosen explicitly, any https URL can be a GitLab
+    // project — that is how self-hosted GitLab hosts are supported, which a
+    // URL alone cannot reveal (that is what GIT_PROVIDER exists for
+    // server-side, where this page cannot see it).
+    if (selected !== 'gitlab') return null
     try {
       const url = new URL(repoUrl.trim().replace(/\.git$/, '').replace(/\/+$/, ''))
       const segments = url.pathname.split('/').filter(Boolean)
@@ -60,7 +62,7 @@ export default function SetupPage() {
     } catch {
       return null
     }
-  }, [repoUrl, configProvider])
+  }, [repoUrl, selected])
   const canonicalRepoUrl = parsed
     ? parsed.provider === 'local'
       ? parsed.dir || repoUrl.trim()
@@ -76,14 +78,22 @@ export default function SetupPage() {
     // is the operator of this very instance.
     if (isLocalhost(window.location.origin)) setDeployUrl(window.location.origin)
     setSessionSecret(randomHex(32))
-    // The provider hint is still needed to recognize self-hosted GitLab URLs.
+    // Default the provider choice to what this deployment serves, as long as
+    // the visitor has not chosen one themselves.
     fetch('/api/config')
       .then((res) => res.json())
       .then((data) => {
-        if (data?.config?.provider) setConfigProvider(data.config.provider)
+        const p = data?.config?.provider
+        if ((p === 'gitlab' || p === 'local') && !providerTouched.current) setSelected(p)
       })
       .catch(() => {})
   }, [])
+
+  // A pasted URL that clearly identifies its provider wins over the selector.
+  useEffect(() => {
+    const p = parseRepoUrl(repoUrl)
+    if (p) setSelected(p.provider)
+  }, [repoUrl])
 
   // Best-effort checks against the GitHub API: repository visibility, and
   // whether the owner is an organization (personal accounts must not get the
@@ -115,7 +125,7 @@ export default function SetupPage() {
     }
   }, [parsed])
 
-  const provider = parsed?.provider ?? 'github'
+  const provider = selected
 
   // App names are globally unique on GitHub (github.com/apps/<slug>), so a
   // fixed default would collide for everyone; suggest one with the owner in
@@ -164,21 +174,57 @@ export default function SetupPage() {
     form.submit()
   }
 
+  const PROVIDERS = [
+    { key: 'github', label: 'GitHub' },
+    { key: 'gitlab', label: 'GitLab' },
+    { key: 'local', label: 'Local folder' },
+  ] as const
+  const repoPlaceholder =
+    provider === 'github'
+      ? 'https://github.com/owner/repo'
+      : provider === 'gitlab'
+        ? 'https://gitlab.com/group/project'
+        : '/path/to/wiki'
+  const repoInvalidHint =
+    provider === 'github'
+      ? 'Enter a github.com repository URL like https://github.com/owner/repo.'
+      : provider === 'gitlab'
+        ? 'Enter the full project URL, e.g. https://gitlab.com/group/project (self-hosted hosts work too).'
+        : 'Enter an absolute directory path, e.g. /srv/wiki.'
+
   const commonFields = (
     <>
+      <div className="field">
+        <label>Git provider</label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {PROVIDERS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              className={`btn${provider === p.key ? ' btn-primary' : ''}`}
+              onClick={() => {
+                providerTouched.current = true
+                setSelected(p.key)
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div className="hint">Where the wiki repository lives. The provider&apos;s accounts control who can read and edit.</div>
+      </div>
       <div className="field">
         <label>Wiki repository</label>
         <input
           value={repoUrl}
           onChange={(e) => setRepoUrl(e.target.value)}
-          placeholder="https://github.com/owner/repo"
+          placeholder={repoPlaceholder}
           required
         />
         <div className="hint">
           {repoUrl && !parsed
-            ? 'Not a supported repository URL (github.com, gitlab.com, or an absolute local path).'
-            : repoNote ||
-              'The repository that holds (or will hold) the wiki. GitHub, GitLab, or an absolute local path.'}
+            ? repoInvalidHint
+            : repoNote || 'The repository that holds (or will hold) the wiki.'}
         </div>
       </div>
       {provider !== 'local' && (
@@ -324,7 +370,7 @@ export default function SetupPage() {
             </div>
           </div>
           <input type="hidden" name="manifest" value={manifest} />
-          <button className="btn btn-primary" disabled={!deployUrl || !parsed}>
+          <button className="btn btn-primary" disabled={!deployUrl || parsed?.provider !== 'github'}>
             Create GitHub App on GitHub
           </button>
         </form>
