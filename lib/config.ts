@@ -14,6 +14,13 @@ export interface RepoConfig {
   root: string
   /** Absolute directory of a local repository (provider "local" only). */
   dir?: string
+  /**
+   * Create the directory (git-initialized) when it is missing. Set only for
+   * the deployment's own configured local path — never for derived local
+   * configs like the read mirror, where a silently created empty directory
+   * would masquerade as an empty wiki.
+   */
+  autoCreate?: boolean
 }
 
 /** Full project path, e.g. "owner/repo" or "group/subgroup/repo". */
@@ -88,6 +95,7 @@ export function getRepoConfig(): RepoConfig | null {
     ...parsed,
     branch: process.env.GIT_BRANCH || 'main',
     root: (process.env.GIT_ROOT || '').replace(/^\/+|\/+$/g, ''),
+    ...(parsed.provider === 'local' ? { autoCreate: true } : {}),
   }
 }
 

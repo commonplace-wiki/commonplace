@@ -22,13 +22,10 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 The fastest way to try Commonplace, no accounts and no sign-in setup:
 
 ```bash
-mkdir wiki && git init -q wiki
-docker run -p 3000:3000 \
-  -v $(pwd)/wiki:/wiki -e GIT_REPO=/wiki \
-  commonplacewiki/commonplace
+docker run -p 3000:3000 -e GIT_REPO=/tmp/wiki commonplacewiki/commonplace
 ```
 
-Open http://localhost:3000. The "Sign in" button works immediately, and every saved page becomes a git commit in `./wiki`.
+Open http://localhost:3000. The "Sign in" button works immediately, and every saved page becomes a git commit. The missing directory is created (and `git init`ed) automatically; here it lives inside the container, so it disappears with it. To keep the wiki on your machine, mount a folder instead: `-v $(pwd)/wiki:/wiki -e GIT_REPO=/wiki`.
 
 ## Quickstart (GitHub)
 

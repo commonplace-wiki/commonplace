@@ -76,6 +76,35 @@ function isGitRepo(dir: string): Promise<boolean> {
   return cached
 }
 
+// Auto-create the deployment's configured directory on first use, so
+// GIT_REPO=/tmp/wiki works with nothing prepared. One path level only (no
+// recursive mkdir): a missing parent means a typo'd path, which should fail,
+// not silently produce an empty wiki. Never applies to derived local configs
+// like the read mirror — see RepoConfig.autoCreate.
+const ensureCache = new Map<string, Promise<void>>()
+
+function ensureDir(config: RepoConfig): Promise<void> {
+  if (!config.autoCreate) return Promise.resolve()
+  const dir = repoDir(config)
+  let cached = ensureCache.get(dir)
+  if (!cached) {
+    cached = (async () => {
+      try {
+        await fs.stat(dir)
+        return // exists: whatever it is, the normal code paths handle it
+      } catch (err) {
+        if (!isMissing(err)) throw err
+      }
+      await fs.mkdir(dir)
+      // Best effort: without git the wiki still works, commit-less.
+      await git(dir, ['init', '--quiet']).catch(() => {})
+    })()
+    cached.catch(() => ensureCache.delete(dir)) // retry on the next request
+    ensureCache.set(dir, cached)
+  }
+  return cached
+}
+
 // Extra -c flags supplying a commit identity when the repo has none configured.
 const identityCache = new Map<string, Promise<string[]>>()
 
@@ -133,6 +162,7 @@ async function readRepoFile(config: RepoConfig, repoPath: string): Promise<{ buf
 }
 
 export async function getFile(_token: string | null, config: RepoConfig, repoPath: string): Promise<RepoFile> {
+  await ensureDir(config).catch(() => {})
   const stat = await fs.stat(absPath(config, repoPath)).catch((err) => {
     if (isMissing(err)) throw new GitHubError(404, `${repoPath} not found`)
     throw err
@@ -150,6 +180,7 @@ async function writeRepoFile(
   sha?: string
 ): Promise<string> {
   return withWriteLock(async () => {
+    await ensureDir(config).catch(() => {})
     const target = absPath(config, repoPath)
     let currentSha: string | null = null
     try {
@@ -316,6 +347,7 @@ export async function lastCommit(
 /** Write access means the server process can write to the directory. */
 export async function canWrite(_token: string, config: RepoConfig): Promise<boolean | null> {
   try {
+    await ensureDir(config)
     await fs.access(repoDir(config), fsConstants.W_OK)
     return true
   } catch {
@@ -325,6 +357,7 @@ export async function canWrite(_token: string, config: RepoConfig): Promise<bool
 
 export async function repoExists(_token: string | null, config: RepoConfig): Promise<boolean> {
   try {
+    await ensureDir(config)
     return (await fs.stat(repoDir(config))).isDirectory()
   } catch {
     return false
@@ -434,6 +467,7 @@ export async function listMarkdownFiles(
   _token: string | null,
   config: RepoConfig
 ): Promise<{ files: TreeEntry[]; truncated: boolean; logo: string | null }> {
+  await ensureDir(config).catch(() => {})
   const bundleFiles = await walkFiles(config, config.root)
   const prefix = config.root ? `${config.root}/` : ''
   const files: TreeEntry[] = []
