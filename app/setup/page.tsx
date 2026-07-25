@@ -372,6 +372,21 @@ export default function SetupPage() {
             Create GitHub App on GitHub
           </button>
         </form>
+        <p style={{ marginBottom: 4 }}>
+          Your deployment will run with this environment — creating the app fills in the two
+          credentials:
+        </p>
+        <EnvBlock
+          vars={[
+            { key: 'GIT_REPO', value: canonicalRepoUrl || '…' },
+            { key: 'GITHUB_CLIENT_ID', value: '…' },
+            { key: 'GITHUB_CLIENT_SECRET', value: '…' },
+            { key: 'SESSION_SECRET', value: sessionSecret || '…' },
+            ...(cleanDeploy && !isLocalhost(cleanDeploy)
+              ? [{ key: 'PUBLIC_ORIGIN', value: cleanDeploy }]
+              : []),
+          ]}
+        />
       </div>
       <p className="muted">
         Alternatively, <a href="/login?token=1">sign in with a personal access token</a>, no app
