@@ -1,4 +1,7 @@
-# Commonplace
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/lockup-name-dark.png">
+  <img src=".github/lockup-name-light.png" alt="Commonplace" width="400">
+</picture>
 
 An open-source wiki, knowledge base and Confluence alternative, based on a Git repository following [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md), with a nice UI.
 
@@ -18,7 +21,7 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 
 ## Try locally
 
-The fastest way to try Commonplace, no accounts and no sign-in setup:
+The fastest way to try Commonplace with a local Git repository:
 
 ```bash
 wiki=$(mktemp -d) && git init -q "$wiki" && echo "Wiki repository: $wiki"
@@ -27,11 +30,13 @@ docker run -p 3000:3000 \
   commonplacewiki/commonplace
 ```
 
-Open http://localhost:3000. The "Sign in" button works immediately, and every saved page becomes a git commit in `$wiki`. To keep the wiki, use a folder of your choice instead of the temp directory.
+Open http://localhost:3000.
 
-## Quickstart (GitHub)
+## Quickstart
 
-The production setup: the wiki lives in a GitHub repository, and every edit is a commit by a signed-in GitHub user.
+In production, the wiki lives in a private or public GitHub or GitLab repository.
+
+You need to set up a [GitHub App](https://www.commonplace.wiki/Installation/github-app.md) or [GitLab OAuth App](https://www.commonplace.wiki/Git-Repositories/gitlab.md) to pull the repo and to authenticate users. You can use the [https://commonplace.wiki/setup](https://www.commonplace.wiki/setup) which guides you to the setup.
 
 ```bash
 docker run -p 3000:3000 \
@@ -42,13 +47,9 @@ docker run -p 3000:3000 \
   commonplacewiki/commonplace
 ```
 
-The client ID and secret belong to a GitHub App. The wizard at [commonplace.wiki/setup](https://www.commonplace.wiki/setup) creates it in one click and hands you this environment fully filled in — the credentials are converted directly in your browser and never touch that server. The same wizard runs on your own deployment at `/setup`.
-
-If the repository is public, the wiki is readable without signing in; reading a private repository and editing require it. Sign-in also works without an app, using a personal access token with Contents read/write. To see Commonplace with content in it, use `GIT_REPO=https://github.com/commonplace-wiki/knowledgebase`, the repository behind the live docs at [commonplace.wiki](https://www.commonplace.wiki).
-
-All configuration is passed as environment variables at runtime; nothing is baked into the image (`docker build -t commonplace .` to build it yourself).
-
-For GitLab wikis (gitlab.com or self-hosted), see the [GitLab guide](https://www.commonplace.wiki/Git-Repositories/gitlab.md). Additional installation methods, such as [Kubernetes](https://www.commonplace.wiki/Installation/install-on-kubernetes.md), [Azure](https://www.commonplace.wiki/Installation/install-on-azure.md), and [Vercel](https://www.commonplace.wiki/Installation/install-on-vercel.md), are covered in the [Installation docs](https://www.commonplace.wiki/Installation).
+If the repository is public, the wiki is readable without signing in. Reading a private repository and editing pages require it. Sign-in also works without an app, using a personal access token with Contents read/write.
+ 
+Refer to the [documentation](https://www.commonplace.wiki) for all config options. For GitLab wikis (gitlab.com or self-hosted), see the [GitLab guide](https://www.commonplace.wiki/Git-Repositories/gitlab.md). Additional installation methods, such as [Kubernetes](https://www.commonplace.wiki/Installation/install-on-kubernetes.md), [Azure](https://www.commonplace.wiki/Installation/install-on-azure.md), and [Vercel](https://www.commonplace.wiki/Installation/install-on-vercel.md), are covered in the [Installation docs](https://www.commonplace.wiki/Installation).
 
 ## Local Setup (from source)
 
