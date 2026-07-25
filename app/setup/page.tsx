@@ -36,6 +36,8 @@ export default function SetupPage() {
   /** Provider of the deployment's own config; parseRepoUrl alone cannot spot a self-hosted GitLab. */
   const [configProvider, setConfigProvider] = useState<string | null>(null)
   const formRef = useRef<HTMLFormElement>(null)
+  /** Last auto-suggested app name, so typing wins over suggestions. */
+  const autoName = useRef('Commonplace')
 
   const parsed = useMemo(() => {
     const p = parseRepoUrl(repoUrl)
@@ -67,16 +69,18 @@ export default function SetupPage() {
   const cleanDeploy = deployUrl.trim().replace(/\/+$/, '')
 
   useEffect(() => {
-    setDeployUrl(window.location.origin)
+    // No prefills from this deployment's own configuration: this wizard also
+    // runs hosted (e.g. on commonplace.wiki) for people setting up their own
+    // deployment, and prefilled values from the host would read as theirs.
+    // The origin is only a sensible default on localhost, where the visitor
+    // is the operator of this very instance.
+    if (isLocalhost(window.location.origin)) setDeployUrl(window.location.origin)
     setSessionSecret(randomHex(32))
-    // Prefill from the deployment's own configuration when there is one.
+    // The provider hint is still needed to recognize self-hosted GitLab URLs.
     fetch('/api/config')
       .then((res) => res.json())
       .then((data) => {
-        const cfg = data?.config
-        if (!cfg || cfg.provider === 'local') return
-        setConfigProvider(cfg.provider)
-        setRepoUrl((prev) => prev || `https://${cfg.host}/${cfg.owner}/${cfg.repo}`)
+        if (data?.config?.provider) setConfigProvider(data.config.provider)
       })
       .catch(() => {})
   }, [])
@@ -112,6 +116,16 @@ export default function SetupPage() {
   }, [parsed])
 
   const provider = parsed?.provider ?? 'github'
+
+  // App names are globally unique on GitHub (github.com/apps/<slug>), so a
+  // fixed default would collide for everyone; suggest one with the owner in
+  // it, but never overwrite what the user typed themselves.
+  useEffect(() => {
+    if (!parsed || parsed.provider === 'local' || !parsed.owner) return
+    const suggestion = `Commonplace (${parsed.owner})`.slice(0, 34)
+    setName((prev) => (prev === autoName.current ? suggestion : prev))
+    autoName.current = suggestion
+  }, [parsed])
 
   const manifest = JSON.stringify({
     name: name.trim() || 'Commonplace',
@@ -281,14 +295,9 @@ export default function SetupPage() {
           <div className="field">
             <label>App name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} required />
-            <div className="hint">Shown on GitHub&apos;s consent screen. Must be unique on GitHub.</div>
-          </div>
-          <div className="field">
-            <label>Organization (optional)</label>
-            <input value={org} onChange={(e) => setOrg(e.target.value)} placeholder="e.g. my-orga" />
             <div className="hint">
-              Filled in automatically when the repository belongs to an organization; the app is
-              then created there instead of your personal account.
+              Shown on GitHub&apos;s consent screen. App names are unique across all of GitHub, so
+              a personal touch is required.
             </div>
           </div>
           <input type="hidden" name="manifest" value={manifest} />
