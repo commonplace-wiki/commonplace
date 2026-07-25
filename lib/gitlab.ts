@@ -53,7 +53,8 @@ export async function gl(
     // GitLab reports a stale last_commit_id as 400; normalize to 409 so the
     // routes' concurrent-edit handling applies.
     const status = res.status === 400 && /changed since|does not match/i.test(message) ? 409 : res.status
-    throw new GitHubError(status, message)
+    const reset = Number(res.headers.get('ratelimit-reset'))
+    throw new GitHubError(status, message, res.status === 429, res.status === 429 && reset ? reset * 1000 : null)
   }
   if (res.status === 204) return null
   const text = await res.text()

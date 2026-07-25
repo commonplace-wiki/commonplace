@@ -5,7 +5,11 @@ const API = 'https://api.github.com'
 export class GitHubError extends Error {
   constructor(
     public status: number,
-    message: string
+    message: string,
+    /** The provider refused because of a request quota, not permissions. */
+    public rateLimited = false,
+    /** Epoch ms when the quota resets, when the provider said so. */
+    public rateLimitResetAt: number | null = null
   ) {
     super(message)
     this.name = 'GitHubError'
@@ -33,7 +37,12 @@ export async function gh(token: string | null, path: string, init: RequestInit =
     } catch {
       // keep generic message
     }
-    throw new GitHubError(res.status, message)
+    // Rate limits come back as 403 (primary, "API rate limit exceeded") or
+    // 429 (secondary); either way the request was fine and retrying later
+    // will work, which deserves different handling than a permission error.
+    const rateLimited = (res.status === 403 || res.status === 429) && /rate limit/i.test(message)
+    const reset = Number(res.headers.get('x-ratelimit-reset'))
+    throw new GitHubError(res.status, message, rateLimited, rateLimited && reset ? reset * 1000 : null)
   }
   if (res.status === 204) return null
   return res.json()

@@ -187,6 +187,46 @@ function Unconfigured() {
   )
 }
 
+/**
+ * Shown when the provider refuses reads over its request quota. Anonymous
+ * API quotas are tiny (GitHub: 60/hour per network address) and shared
+ * networks exhaust them quickly; the fix is signing in or waiting, so say
+ * that instead of pretending the wiki needs sign-in permissions.
+ */
+function RateLimited({ resetAt }: { resetAt: number | null }) {
+  const { me, config, refreshTree } = useWiki()
+  const provider = config?.provider === 'gitlab' ? 'GitLab' : 'GitHub'
+  const resets = resetAt
+    ? new Date(resetAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null
+  return (
+    <div className="landing">
+      <h1>{provider} rate limit reached</h1>
+      <p className="subtitle">
+        {me
+          ? `${provider} is refusing requests because your token's request quota is used up.`
+          : `${provider} allows only a small number of anonymous requests per hour and network address, and that quota is used up. This happens quickly on shared networks.`}
+      </p>
+      <div className="card">
+        <p style={{ marginTop: 0 }}>
+          {resets ? `The quota resets at ${resets}.` : 'The quota resets within the hour.'}
+          {!me && ' Signing in gives this wiki its own, much larger quota, effective immediately.'}
+        </p>
+        <div className="signin-actions">
+          {!me && (
+            <Link href="/login" className="btn btn-primary">
+              Sign in
+            </Link>
+          )}
+          <button className="btn" onClick={refreshTree}>
+            Retry
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -202,6 +242,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null)
   /** True when /api/config reported that GIT_REPO is not set at all. */
   const [unconfigured, setUnconfigured] = useState(false)
+  /** Set while the provider refuses reads over its request quota. */
+  const [rateLimited, setRateLimited] = useState<{ resetAt: number | null } | null>(null)
   // Mobile nav drawer: hidden on wide screens, slides in over the content
   // when the topbar hamburger is tapped.
   const [navOpen, setNavOpen] = useState(false)
@@ -238,6 +280,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         const data = await res.json()
         // A newer request is in flight or already landed; drop this response.
         if (requestId !== treeRequestRef.current) return
+        if (res.status === 429 && data.rateLimited) {
+          // Not a permission problem: a login redirect would point at the
+          // wrong fix. A dedicated screen explains and offers a retry.
+          setRateLimited({ resetAt: data.resetAt ?? null })
+          setTreeError('Rate limit reached')
+          return
+        }
         if (res.status === 401) {
           // No session and the repo is not publicly readable.
           router.replace('/login')
@@ -248,6 +297,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         setLogo(data.logo || null)
         setOrder(data.order || {})
         setTreeError(null)
+        setRateLimited(null)
         try {
           sessionStorage.setItem(
             'okf_tree',
@@ -442,7 +492,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
                 : 'If sign-in uses a GitHub App, install it on this repository (App settings → Install App); with a personal access token, grant it Contents read/write on this repository.'}
           </div>
         )}
-        {unconfigured ? <Unconfigured /> : children}
+        {unconfigured ? <Unconfigured /> : rateLimited ? <RateLimited resetAt={rateLimited.resetAt} /> : children}
       </main>
     </WikiContext.Provider>
   )

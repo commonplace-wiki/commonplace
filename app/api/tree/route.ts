@@ -55,6 +55,19 @@ export async function GET() {
     ) {
       return NextResponse.json({ files: [], truncated: false, logo: null, order: {}, empty: true })
     }
+    // A quota refusal is not a permission problem: bouncing the visitor to
+    // sign-in (and from there to /setup) would point them at the wrong fix.
+    // The shell shows a dedicated screen for this.
+    if (err instanceof GitHubError && err.rateLimited) {
+      return NextResponse.json(
+        {
+          error: 'Rate limit reached',
+          rateLimited: true,
+          resetAt: err.rateLimitResetAt,
+        },
+        { status: 429 }
+      )
+    }
     // Anonymous access to a private (or missing) repo: ask for sign-in
     // instead of surfacing GitHub's 404.
     if (!session && err instanceof GitHubError && [401, 403, 404].includes(err.status)) {
