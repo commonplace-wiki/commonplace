@@ -60,9 +60,9 @@ button {
   z-index: 20;
 }
 
-/* Hamburger: hidden on wide screens, shown when the sidebar collapses. */
+/* Hamburger: collapses the sidebar on wide screens, opens the drawer on small ones. */
 .nav-toggle {
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 34px;
@@ -239,12 +239,36 @@ body.sidebar-resizing {
   display: none;
 }
 
+/* Fully collapsed sidebar (desktop): the topbar hamburger toggles the
+   body class; the drawer breakpoint below has its own off-canvas rules. */
+@media (min-width: 901px) {
+  .sidebar {
+    transition: transform 0.2s ease, visibility 0.2s;
+  }
+  .main {
+    transition: margin-left 0.2s ease;
+  }
+  .graph-page {
+    transition: left 0.2s ease;
+  }
+  body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%);
+    visibility: hidden;
+  }
+  body.sidebar-collapsed .sidebar-resizer {
+    display: none;
+  }
+  body.sidebar-collapsed .main {
+    margin-left: 0;
+  }
+  body.sidebar-collapsed .graph-page {
+    left: 0;
+  }
+}
+
 @media (max-width: 900px) {
   :root {
     --content-pad: 20px;
-  }
-  .nav-toggle {
-    display: inline-flex;
   }
   .sidebar-resizer {
     display: none;
@@ -273,7 +297,9 @@ body.sidebar-resizing {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sidebar {
+  .sidebar,
+  .main,
+  .graph-page {
     transition: none;
   }
 }

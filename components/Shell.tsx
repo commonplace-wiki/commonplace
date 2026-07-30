@@ -247,6 +247,10 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Mobile nav drawer: hidden on wide screens, slides in over the content
   // when the topbar hamburger is tapped.
   const [navOpen, setNavOpen] = useState(false)
+  // Desktop: the same hamburger fully collapses the sidebar instead; persisted.
+  const [collapsed, setCollapsed] = useState(false)
+  // Tracks the drawer breakpoint so the hamburger knows which state it drives.
+  const [isMobile, setIsMobile] = useState(false)
   /** True once /api/me answered: me === null then means anonymous viewer. */
   const [authResolved, setAuthResolved] = useState(false)
   const [config, setConfig] = useState<RepoConfig | null>(null)
@@ -395,10 +399,42 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     try {
       const saved = localStorage.getItem('okf_sidebar_w')
       if (saved) document.documentElement.style.setProperty('--sidebar-w', `${saved}px`)
+      if (localStorage.getItem('okf_sidebar_collapsed') === '1') setCollapsed(true)
     } catch {
       // ignore
     }
   }, [])
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+
+  // The collapse rules in globals.css key off this body class so fixed
+  // elements outside the shell (e.g. the graph page) shift along.
+  useEffect(() => {
+    document.body.classList.toggle('sidebar-collapsed', collapsed)
+    return () => document.body.classList.remove('sidebar-collapsed')
+  }, [collapsed])
+
+  function toggleNav() {
+    if (isMobile) {
+      setNavOpen((v) => !v)
+      return
+    }
+    setCollapsed((v) => {
+      const next = !v
+      try {
+        localStorage.setItem('okf_sidebar_collapsed', next ? '1' : '0')
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
 
   function startSidebarResize(e: React.MouseEvent) {
     e.preventDefault()
@@ -441,9 +477,9 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       <header className="topbar">
         <button
           className="nav-toggle"
-          onClick={() => setNavOpen((v) => !v)}
-          aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
-          aria-expanded={navOpen}
+          onClick={toggleNav}
+          aria-label={(isMobile ? navOpen : !collapsed) ? 'Close navigation' : 'Open navigation'}
+          aria-expanded={isMobile ? navOpen : !collapsed}
           aria-controls="wiki-sidebar"
         >
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
