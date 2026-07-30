@@ -283,25 +283,34 @@ function Editor() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, searchParams, isVirtualNew])
 
+  /**
+   * Unsaved changes worth keeping: the editor differs from the version it was
+   * loaded from, and a new page has at least a title or some text.
+   */
+  function hasUnsavedChanges(): boolean {
+    const base = baseRef.current
+    if ((isNew || isVirtualNew) && !body.trim() && !(typeof fm.title === 'string' && fm.title.trim()))
+      return false
+    const baseTags = Array.isArray(base.fm.tags) ? base.fm.tags.join(', ') : ''
+    const baseExtras = Object.entries(base.fm)
+      .filter(([k]) => !OKF_KEYS.includes(k))
+      .map(([k, v]) => [k, displayValue(v)])
+    return (
+      body !== base.body ||
+      tagsText !== baseTags ||
+      JSON.stringify(extraRows.map((r) => [r.key, r.value])) !== JSON.stringify(baseExtras) ||
+      ['type', 'title', 'description', 'resource'].some((k) => (fm[k] ?? '') !== (base.fm[k] ?? ''))
+    )
+  }
+
   // Mirror unsaved edits to localStorage (debounced). The draft disappears
   // again as soon as the editor matches the version it was loaded from.
   useEffect(() => {
     if (!loaded) return
     const timer = setTimeout(() => {
       const base = baseRef.current
-      const untouchedNew =
-        (isNew || isVirtualNew) && !body.trim() && !(typeof fm.title === 'string' && fm.title.trim())
-      const baseTags = Array.isArray(base.fm.tags) ? base.fm.tags.join(', ') : ''
-      const baseExtras = Object.entries(base.fm)
-        .filter(([k]) => !OKF_KEYS.includes(k))
-        .map(([k, v]) => [k, displayValue(v)])
-      const dirty =
-        body !== base.body ||
-        tagsText !== baseTags ||
-        JSON.stringify(extraRows.map((r) => [r.key, r.value])) !== JSON.stringify(baseExtras) ||
-        ['type', 'title', 'description', 'resource'].some((k) => (fm[k] ?? '') !== (base.fm[k] ?? ''))
       try {
-        if (untouchedNew || !dirty) {
+        if (!hasUnsavedChanges()) {
           localStorage.removeItem(draftKey)
         } else {
           const draft: Draft = {
@@ -321,7 +330,49 @@ function Editor() {
       }
     }, 400)
     return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, body, fm, tagsText, extraRows, sha, isNew, isVirtualNew, draftKey])
+
+  // Warnings before the edit is left behind, reading the current dirty state
+  // through a ref so the listeners register once.
+  const hasUnsavedRef = useRef(hasUnsavedChanges)
+  hasUnsavedRef.current = hasUnsavedChanges
+
+  // Reload or tab close: the browser shows its generic "leave site?" dialog.
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!hasUnsavedRef.current()) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [])
+
+  // In-app navigation: the App Router has no route-change blocking, so catch
+  // link clicks before they reach it. Cancel confirms on its own (it discards
+  // the draft, which deserves a different question).
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (!hasUnsavedRef.current()) return
+      const anchor = (e.target as HTMLElement).closest?.('a[href]') as HTMLAnchorElement | null
+      if (!anchor || anchor.classList.contains('cancel-link')) return
+      // New-tab opens don't leave the editor.
+      if (anchor.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+      const href = anchor.getAttribute('href') || ''
+      if (!href.startsWith('/')) return
+      if (
+        !window.confirm(
+          'You have unsaved changes. Leave the editor? Your edits are kept as a local draft on this device.'
+        )
+      ) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    document.addEventListener('click', onClick, true)
+    return () => document.removeEventListener('click', onClick, true)
+  }, [])
 
   function field(key: string): string {
     const value = fm[key]
@@ -570,24 +621,21 @@ function Editor() {
         e.preventDefault()
         saveRef.current()
       } else if (e.key === 'Escape' && !e.defaultPrevented) {
-        setPanel((current) => {
-          if (current) return null
-          setMoveOpen((open) => {
-            if (!open) {
-              // Closing the editor abandons the edit, draft included.
-              discardRef.current()
-              router.push(cancelHref)
-            }
-            return false
-          })
-          return null
-        })
+        if (panel) {
+          setPanel(null)
+        } else if (moveOpen) {
+          setMoveOpen(false)
+        } else if (!hasUnsavedRef.current() || window.confirm('Discard your unsaved changes?')) {
+          // Closing the editor abandons the edit, draft included.
+          discardRef.current()
+          router.push(cancelHref)
+        }
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cancelHref])
+  }, [cancelHref, panel, moveOpen])
 
   if (!loaded) return <p className="muted">Loading editor…</p>
 
@@ -674,7 +722,18 @@ function Editor() {
         )}
         <div className="topbar-spacer" />
         <div className="editor-actions" ref={actionsRef}>
-          <Link className="cancel-link" href={cancelHref} title="Close editor (Esc)" onClick={clearStoredDraft}>
+          <Link
+            className="cancel-link"
+            href={cancelHref}
+            title="Close editor (Esc)"
+            onClick={(e) => {
+              if (hasUnsavedChanges() && !window.confirm('Discard your unsaved changes?')) {
+                e.preventDefault()
+                return
+              }
+              clearStoredDraft()
+            }}
+          >
             Cancel
           </Link>
           <button
