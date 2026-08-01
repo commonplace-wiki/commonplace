@@ -60,7 +60,8 @@ button {
   z-index: 20;
 }
 
-/* Hamburger: collapses the sidebar on wide screens, opens the drawer on small ones. */
+/* Hamburger: only shown while the sidebar is hidden — reopens the collapsed
+   sidebar on wide screens, opens the drawer on small ones. */
 .nav-toggle {
   display: inline-flex;
   align-items: center;
@@ -239,8 +240,9 @@ body.sidebar-resizing {
   display: none;
 }
 
-/* Fully collapsed sidebar (desktop): the topbar hamburger toggles the
-   body class; the drawer breakpoint below has its own off-canvas rules. */
+/* Fully collapsed sidebar (desktop): dragging the resizer past the minimum
+   width sets the body class, the topbar hamburger clears it; the drawer
+   breakpoint below has its own off-canvas rules. */
 @media (min-width: 901px) {
   .sidebar {
     transition: transform 0.2s ease, visibility 0.2s;

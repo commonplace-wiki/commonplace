@@ -247,7 +247,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Mobile nav drawer: hidden on wide screens, slides in over the content
   // when the topbar hamburger is tapped.
   const [navOpen, setNavOpen] = useState(false)
-  // Desktop: the same hamburger fully collapses the sidebar instead; persisted.
+  // Desktop: dragging the resizer fully to the left collapses the sidebar;
+  // the hamburger (only shown while collapsed) brings it back. Persisted.
   const [collapsed, setCollapsed] = useState(false)
   // Tracks the drawer breakpoint so the hamburger knows which state it drives.
   const [isMobile, setIsMobile] = useState(false)
@@ -420,33 +421,42 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     return () => document.body.classList.remove('sidebar-collapsed')
   }, [collapsed])
 
-  function toggleNav() {
-    if (isMobile) {
-      setNavOpen((v) => !v)
-      return
+  function persistCollapsed(next: boolean) {
+    setCollapsed(next)
+    try {
+      localStorage.setItem('okf_sidebar_collapsed', next ? '1' : '0')
+    } catch {
+      // ignore
     }
-    setCollapsed((v) => {
-      const next = !v
-      try {
-        localStorage.setItem('okf_sidebar_collapsed', next ? '1' : '0')
-      } catch {
-        // ignore
-      }
-      return next
-    })
+  }
+
+  function openNav() {
+    if (isMobile) setNavOpen(true)
+    else persistCollapsed(false)
   }
 
   function startSidebarResize(e: React.MouseEvent) {
     e.preventDefault()
     const clamp = (x: number) => Math.min(560, Math.max(200, x))
+    // Dragging past the minimum width snaps the sidebar closed; the body
+    // class gives a live preview while the pointer is below the threshold.
+    const collapseAt = 120
     const onMove = (ev: MouseEvent) => {
-      document.documentElement.style.setProperty('--sidebar-w', `${clamp(ev.clientX)}px`)
+      const collapse = ev.clientX < collapseAt
+      document.body.classList.toggle('sidebar-collapsed', collapse)
+      if (!collapse) document.documentElement.style.setProperty('--sidebar-w', `${clamp(ev.clientX)}px`)
     }
     const onUp = (ev: MouseEvent) => {
-      try {
-        localStorage.setItem('okf_sidebar_w', String(clamp(ev.clientX)))
-      } catch {
-        // ignore
+      if (ev.clientX < collapseAt) {
+        // Keep the last saved width so reopening restores a usable sidebar.
+        persistCollapsed(true)
+      } else {
+        document.body.classList.remove('sidebar-collapsed')
+        try {
+          localStorage.setItem('okf_sidebar_w', String(clamp(ev.clientX)))
+        } catch {
+          // ignore
+        }
       }
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
@@ -475,17 +485,19 @@ export default function Shell({ children }: { children: React.ReactNode }) {
       value={{ me, config, files, order, treeError, settings, logo, refreshTree, refreshSettings }}
     >
       <header className="topbar">
-        <button
-          className="nav-toggle"
-          onClick={toggleNav}
-          aria-label={(isMobile ? navOpen : !collapsed) ? 'Close navigation' : 'Open navigation'}
-          aria-expanded={isMobile ? navOpen : !collapsed}
-          aria-controls="wiki-sidebar"
-        >
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </button>
+        {(isMobile ? !navOpen : collapsed) && (
+          <button
+            className="nav-toggle"
+            onClick={openNav}
+            aria-label="Open navigation"
+            aria-expanded={false}
+            aria-controls="wiki-sidebar"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
         <Link href="/" className="brand">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element
