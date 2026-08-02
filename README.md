@@ -59,3 +59,7 @@ npm run dev
 ```
 
 Open http://localhost:3000 and sign in. 
+
+## Read more
+
+https://www.commonplace.wiki/
