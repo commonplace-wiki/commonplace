@@ -4,6 +4,8 @@ Commonplace is an open-source wiki, knowledge base and Confluence alternative, b
 
 Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Commonplace wiki for its [knowledgebase](https://github.com/commonplace-wiki/knowledgebase))
 
+![Commonplace screenshot](.github/screenshot.png)
+
 
 ## Features
 
