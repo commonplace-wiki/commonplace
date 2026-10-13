@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useWiki, type WikiFile } from './Shell'
+import { buildTree, childrenByDir, orderKey, planMove, pretty, remapMovedFiles, type Node, type OrderMap } from '@/lib/nav'
 
 /**
  * "Loading pages…" only appears when the tree is actually slow to arrive;
@@ -26,92 +27,6 @@ function Chevron() {
   )
 }
 
-interface Node {
-  /** Display label: frontmatter title, or a prettified filename. */
-  title: string
-  /** Directory path (for dirs) or file path (for pages). */
-  path: string
-  isDir: boolean
-  /** For a directory that also has a same-named page (Confluence-style parent page). */
-  pagePath?: string
-  children: Node[]
-}
-
-type OrderMap = Record<string, string[]>
-
-function pretty(name: string): string {
-  return name.replace(/\.md$/, '').replace(/[-_]/g, ' ')
-}
-
-/** Node name as used in order.yaml lists: basename without the .md suffix. */
-function orderKey(path: string): string {
-  return (path.split('/').pop() || path).replace(/\.md$/, '')
-}
-
-function buildTree(files: WikiFile[], order: OrderMap): Node[] {
-  const root: Node = { title: '', path: '', isDir: true, children: [] }
-  const dirs = new Map<string, Node>([['', root]])
-
-  function ensureDir(dirPath: string): Node {
-    const existing = dirs.get(dirPath)
-    if (existing) return existing
-    const parentPath = dirPath.includes('/') ? dirPath.slice(0, dirPath.lastIndexOf('/')) : ''
-    const parent = ensureDir(parentPath)
-    const node: Node = {
-      title: pretty(dirPath.split('/').pop() || dirPath),
-      path: dirPath,
-      isDir: true,
-      children: [],
-    }
-    parent.children.push(node)
-    dirs.set(dirPath, node)
-    return node
-  }
-
-  for (const file of files) {
-    if (file.hidden) continue
-    const base = file.path.split('/').pop() || file.path
-    // Reserved OKF files and repo README stay out of the nav.
-    if (base === 'index.md' || base === 'log.md' || base === 'README.md') continue
-    const parentPath = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : ''
-    const parent = ensureDir(parentPath)
-    parent.children.push({
-      title: file.title || pretty(base),
-      path: file.path,
-      isDir: false,
-      children: [],
-    })
-  }
-
-  // Confluence-style merge: a page next to a same-named directory becomes the
-  // directory's own page (one expandable node instead of two rows).
-  function merge(node: Node) {
-    const dirChildren = node.children.filter((c) => c.isDir)
-    for (const dir of dirChildren) {
-      const twin = node.children.find((c) => !c.isDir && c.path === `${dir.path}.md`)
-      if (twin) {
-        dir.pagePath = twin.path
-        dir.title = twin.title
-        node.children = node.children.filter((c) => c !== twin)
-      }
-      merge(dir)
-    }
-    // Children listed in order.yaml come first, in that order; the rest keep
-    // the title sort.
-    const list = order[node.path] ?? []
-    node.children.sort((a, b) => {
-      const ia = list.indexOf(orderKey(a.path))
-      const ib = list.indexOf(orderKey(b.path))
-      if (ia !== -1 && ib !== -1) return ia - ib
-      if (ia !== -1) return -1
-      if (ib !== -1) return 1
-      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })
-    })
-  }
-  merge(root)
-  return root.children
-}
-
 function TreeLevel({
   nodes,
   dir,
@@ -120,6 +35,9 @@ function TreeLevel({
   toggle,
   onReorder,
   saving,
+  onMove,
+  moving,
+  moveDisabled,
 }: {
   nodes: Node[]
   /** Directory path of this sibling group ('' for the bundle root). */
@@ -131,6 +49,12 @@ function TreeLevel({
   onReorder?: (dir: string, names: string[], moved: string) => void
   /** Row whose reorder commit is still in flight (shows a spinner). */
   saving?: { dir: string; name: string } | null
+  /** When set, rows show indent/outdent controls. */
+  onMove?: (node: Node, direction: 'in' | 'out') => void
+  /** Path of the row whose move commit is in flight. */
+  moving?: string | null
+  /** True while any move is in flight (all controls disabled). */
+  moveDisabled?: boolean
 }) {
   const [dragIdx, setDragIdx] = useState<number | null>(null)
   /** Insertion index (0..nodes.length) while dragging over this level. */
@@ -192,6 +116,42 @@ function TreeLevel({
         const isActive = activePath === linkTarget || (node.isDir && activePath === node.path)
         const isSaving = saving != null && saving.dir === dir && saving.name === orderKey(node.path)
         const spinner = isSaving && <span className="tree-spinner" aria-label="Saving order…" />
+        const isMoving = moving != null && moving === node.path
+        const moveSpinner = isMoving && <span className="tree-spinner" aria-label="Moving…" />
+        const actions = (
+          <span className="tree-actions">
+            <button
+              type="button"
+              className="tree-move"
+              title="Move out of the folder"
+              aria-label="Outdent"
+              disabled={!onMove || moveDisabled || dir === ''}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onMove?.(node, 'out')
+              }}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              className="tree-move"
+              title="Move into the item above"
+              aria-label="Indent"
+              disabled={!onMove || moveDisabled || i === 0}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onMove?.(node, 'in')
+              }}
+            >
+              →
+            </button>
+          </span>
+        )
         if (node.isDir) {
           const isExpanded = expanded.has(node.path)
           return (
@@ -205,10 +165,15 @@ function TreeLevel({
                 >
                   <Chevron />
                 </button>
+                <span className="tree-number" aria-hidden="true">
+                  {node.number}
+                </span>
                 <Link href={`/${linkTarget}`} className="tree-link" title={node.path}>
                   {node.title}
                 </Link>
                 {spinner}
+                {moveSpinner}
+                {actions}
               </div>
               {isExpanded && (
                 <div className="tree-children">
@@ -220,6 +185,9 @@ function TreeLevel({
                     toggle={toggle}
                     onReorder={onReorder}
                     saving={saving}
+                    onMove={onMove}
+                    moving={moving}
+                    moveDisabled={moveDisabled}
                   />
                 </div>
               )}
@@ -231,10 +199,15 @@ function TreeLevel({
             <span className="tree-toggle leaf">
               <span className="tree-dot" />
             </span>
+            <span className="tree-number" aria-hidden="true">
+              {node.number}
+            </span>
             <Link href={`/${node.path}`} className="tree-link" title={node.path}>
               {node.title}
             </Link>
             {spinner}
+            {moveSpinner}
+            {actions}
           </div>
         )
       })}
@@ -254,11 +227,21 @@ export default function Sidebar({ open = false }: { open?: boolean }) {
   // further drags wait until it clears.
   const [saving, setSaving] = useState<{ dir: string; name: string } | null>(null)
   const [reorderError, setReorderError] = useState<string | null>(null)
+  // Optimistic file remap while a move's commit and tree reload are in flight.
+  const [filesOverride, setFilesOverride] = useState<WikiFile[] | null>(null)
+  // Path of the row being moved (shows a spinner; blocks further moves).
+  const [moving, setMoving] = useState<string | null>(null)
+  const [moveError, setMoveError] = useState<string | null>(null)
 
   const activePath = decodeURIComponent(pathname.replace(/^\/(wiki\/|edit\/)?/, ''))
 
   const effectiveOrder = useMemo(() => ({ ...order, ...orderOverride }), [order, orderOverride])
-  const tree = useMemo(() => (files ? buildTree(files, effectiveOrder) : []), [files, effectiveOrder])
+  const effectiveFiles = filesOverride ?? files
+  const tree = useMemo(
+    () => (effectiveFiles ? buildTree(effectiveFiles, effectiveOrder) : []),
+    [effectiveFiles, effectiveOrder]
+  )
+  const childrenMap = useMemo(() => childrenByDir(tree), [tree])
 
   const reorder = useCallback(
     (dir: string, names: string[], moved: string) => {
@@ -288,6 +271,68 @@ export default function Sidebar({ open = false }: { open?: boolean }) {
         .finally(() => setSaving(null))
     },
     [refreshTree]
+  )
+
+  // Indent (nest under the preceding sibling) or outdent (lift to the parent
+  // level, after the former parent) a node, moving its whole subtree.
+  const move = useCallback(
+    (node: Node, direction: 'in' | 'out') => {
+      setMoveError(null)
+      const plan = planMove(childrenMap, node, direction)
+      if (!plan) return
+      const { toDir, children: destChildren } = plan
+
+      // A merged folder/page moves as its page (the API carries the subpages).
+      const movePath = node.pagePath ?? node.path
+      setMoving(node.path)
+      setFilesOverride((prev) => remapMovedFiles(prev ?? files ?? [], node, toDir))
+      setOrderOverride((prev) => ({ ...prev, [toDir]: destChildren }))
+      // Reveal the destination so the optimistic move is visible.
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        if (toDir) {
+          let prefix = ''
+          for (const segment of toDir.split('/')) {
+            prefix = prefix ? `${prefix}/${segment}` : segment
+            next.add(prefix)
+          }
+        }
+        return next
+      })
+
+      fetch('/api/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          path: movePath,
+          toDir,
+          order: { dir: toDir, children: destChildren },
+          title: node.title,
+        }),
+      })
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok) throw new Error(data.error || 'Move failed')
+          await refreshTree()
+          setFilesOverride(null)
+          setOrderOverride((prev) => {
+            const next = { ...prev }
+            delete next[toDir]
+            return next
+          })
+        })
+        .catch((err) => {
+          setMoveError(err.message)
+          setFilesOverride(null)
+          setOrderOverride((prev) => {
+            const next = { ...prev }
+            delete next[toDir]
+            return next
+          })
+        })
+        .finally(() => setMoving(null))
+    },
+    [childrenMap, files, refreshTree]
   )
 
   // Keep the branch to the current page open (Confluence behavior); everything
@@ -336,6 +381,7 @@ export default function Sidebar({ open = false }: { open?: boolean }) {
       />
       {treeError && <div className="tree-empty">Error: {treeError}</div>}
       {reorderError && <div className="tree-empty">Reorder failed: {reorderError}</div>}
+      {moveError && <div className="tree-empty">Move failed: {moveError}</div>}
       {!treeError && files === null && <TreeLoading />}
       {!filtered && files !== null && (
         <div className={`tree-row home${activePath === '' ? ' active' : ''}`}>
@@ -365,8 +411,11 @@ export default function Sidebar({ open = false }: { open?: boolean }) {
           activePath={activePath}
           expanded={expanded}
           toggle={toggle}
-          onReorder={me && me.canWrite !== false && !saving ? reorder : undefined}
+          onReorder={me && me.canWrite !== false && !saving && !moving ? reorder : undefined}
           saving={saving}
+          onMove={me && me.canWrite !== false ? move : undefined}
+          moving={moving}
+          moveDisabled={saving != null || moving != null}
         />
       )}
       <div className="sidebar-spacer" />

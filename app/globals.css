@@ -398,6 +398,54 @@ body.sidebar-resizing {
   text-decoration: none;
 }
 
+.tree-number {
+  flex: none;
+  min-width: 18px;
+  text-align: right;
+  color: var(--text-subtle);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Indent / outdent controls: revealed on hover or focus, kept on the active row. */
+.tree-actions {
+  flex: none;
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 4px;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.tree-row:hover .tree-actions,
+.tree-row:focus-within .tree-actions,
+.tree-row.active .tree-actions {
+  opacity: 1;
+}
+.tree-move {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-subtle);
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+}
+.tree-move:hover:not(:disabled) {
+  background: var(--border);
+  color: var(--text);
+}
+.tree-move:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 /* Drag & drop reordering */
 .tree-row.dragging {
   opacity: 0.4;
@@ -513,6 +561,13 @@ body.sidebar-resizing {
   font-weight: 700;
   margin: 0 0 6px;
   line-height: 1.25;
+}
+
+.section-number {
+  margin-right: 8px;
+  color: var(--text-subtle);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 
 .meta-card {
@@ -1565,4 +1620,138 @@ body.sidebar-resizing {
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* ---------- Search panel ---------- */
+
+.search-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Icon-only on narrow screens; the label returns with room. */
+.search-open-label {
+  display: none;
+}
+@media (min-width: 620px) {
+  .search-open-label {
+    display: inline;
+  }
+}
+
+.search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(20, 24, 30, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 16px;
+}
+.search-panel {
+  width: 100%;
+  max-width: 620px;
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+}
+.search-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font: inherit;
+  font-size: 15px;
+  padding: 6px 4px;
+}
+.search-scope {
+  flex: none;
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.search-scope button {
+  border: none;
+  background: none;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-subtle);
+  cursor: pointer;
+}
+.search-scope button.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-weight: 600;
+}
+.search-scope button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.search-results {
+  overflow-y: auto;
+  padding: 4px;
+}
+.search-hint {
+  padding: 10px 12px;
+  color: var(--text-subtle);
+  font-size: 13px;
+  margin: 0;
+}
+.search-hint.error {
+  color: var(--danger);
+}
+.search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.search-result:hover,
+.search-result:focus-visible {
+  background: var(--bg-hover);
+}
+.search-result-title {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+.search-result-path {
+  display: block;
+  font-size: 12px;
+  color: var(--text-subtle);
+  margin-top: 1px;
+}
+.search-result-snippet {
+  display: block;
+  font-size: 13px;
+  color: var(--text-subtle);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.search-result-snippet mark {
+  background: #ffe9a8;
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
 }

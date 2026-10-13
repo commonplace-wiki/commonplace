@@ -35,7 +35,10 @@ async function git(dir: string, args: string[]): Promise<string> {
 
 function repoDir(config: RepoConfig): string {
   if (!config.dir) throw new GitHubError(500, 'Local repository directory is not configured')
-  return config.dir
+  // Normalize so every containment check and fs path uses one separator style
+  // (on Windows a `file://C:/...` URL would otherwise keep forward slashes and
+  // never match the backslash paths `path.resolve` produces).
+  return path.resolve(config.dir)
 }
 
 /** Absolute filesystem path for a repo-relative path, confined to the repo. */

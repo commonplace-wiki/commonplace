@@ -2,9 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { clearCachedPages } from '@/lib/pageCache'
+import { buildTree, numberByPath } from '@/lib/nav'
 import Sidebar from './Sidebar'
+import SearchPanel from './SearchPanel'
 
 export interface Me {
   login: string
@@ -71,6 +73,8 @@ interface WikiContextValue {
   files: WikiFile[] | null
   /** Sidebar sort order from .commonplace/order.yaml: directory path → child names. */
   order: Record<string, string[]>
+  /** Section number per page/directory path, derived from the navigation tree. */
+  pageNumbers: Map<string, string>
   treeError: string | null
   settings: WikiSettings | null
   /** Bundle path of the wiki logo (.commonplace/logo.svg or .png), if any. */
@@ -85,6 +89,7 @@ const WikiContext = createContext<WikiContextValue>({
   config: null,
   files: null,
   order: {},
+  pageNumbers: new Map(),
   treeError: null,
   settings: null,
   logo: null,
@@ -239,6 +244,17 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     if (p.endsWith('.md')) return p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : ''
     return p
   })()
+  // Bundle path of the page being viewed, for the search scope ('' when none).
+  const searchPath = (() => {
+    const p = decodeURIComponent(pathname).replace(/^\/+/, '')
+    if (!p || p === 'settings' || p === 'mcp' || p === 'login' || p === 'graph' || p.startsWith('setup')) return ''
+    if (p.startsWith('edit/')) {
+      const target = p.slice('edit/'.length)
+      return target.startsWith('__new__') ? '' : target
+    }
+    if (p.startsWith('wiki/')) return p.slice('wiki/'.length)
+    return p
+  })()
   const [me, setMe] = useState<Me | null>(null)
   /** True when /api/config reported that GIT_REPO is not set at all. */
   const [unconfigured, setUnconfigured] = useState(false)
@@ -247,6 +263,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   // Mobile nav drawer: hidden on wide screens, slides in over the content
   // when the topbar hamburger is tapped.
   const [navOpen, setNavOpen] = useState(false)
+  // Search overlay, opened from the top bar or with Cmd/Ctrl+K.
+  const [searchOpen, setSearchOpen] = useState(false)
   // Desktop: dragging the resizer fully to the left collapses the sidebar;
   // the hamburger (only shown while collapsed) brings it back. Persisted.
   const [collapsed, setCollapsed] = useState(false)
@@ -262,6 +280,13 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const [logo, setLogo] = useState<string | null>(null)
   // Monotonic id so an older, slower /api/tree response never overwrites a newer one.
   const treeRequestRef = useRef(0)
+
+  // Section numbers follow the same ordered tree the sidebar renders, derived
+  // from committed data so a page title matches the sidebar after a reload.
+  const pageNumbers = useMemo(
+    () => numberByPath(files ? buildTree(files, order) : []),
+    [files, order]
+  )
 
   const refreshSettings = useCallback(() => {
     fetch('/api/settings')
@@ -395,6 +420,18 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     setNavOpen(false)
   }, [pathname])
 
+  // Open the search panel with Cmd/Ctrl+K.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSearchOpen(true)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
   // Resizable sidebar: width lives in the --sidebar-w CSS variable and persists.
   useEffect(() => {
     try {
@@ -482,7 +519,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <WikiContext.Provider
-      value={{ me, config, files, order, treeError, settings, logo, refreshTree, refreshSettings }}
+      value={{ me, config, files, order, pageNumbers, treeError, settings, logo, refreshTree, refreshSettings }}
     >
       <header className="topbar">
         {(isMobile ? !navOpen : collapsed) && (
@@ -508,6 +545,20 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           {settings === null ? ' ' : settings.name || 'Commonplace'}
         </Link>
         <div className="topbar-spacer" />
+        {!unconfigured && (
+          <button
+            className="btn search-open"
+            onClick={() => setSearchOpen(true)}
+            aria-label="Search"
+            title="Search (Ctrl/Cmd+K)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M10.5 10.5L14 14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            <span className="search-open-label">Search</span>
+          </button>
+        )}
         {!isEditing && me && (
           <Link
             href={`/edit/__new__${currentDir ? `?dir=${encodeURIComponent(currentDir)}` : ''}`}
@@ -542,6 +593,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         )}
         {unconfigured ? <Unconfigured /> : rateLimited ? <RateLimited resetAt={rateLimited.resetAt} /> : children}
       </main>
+      <SearchPanel open={searchOpen} onClose={() => setSearchOpen(false)} currentPath={searchPath} />
     </WikiContext.Provider>
   )
 }

@@ -150,7 +150,7 @@ function DirectoryListing({ dir }: { dir: string }) {
 }
 
 function FileView({ path }: { path: string }) {
-  const { me } = useWiki()
+  const { me, pageNumbers } = useWiki()
   // Stale-while-revalidate: the layout effect paints any cached copy on the
   // very first frame — before the browser paints, so a cached page never
   // flashes a loading state — and the refetch swaps in the fresh one when it
@@ -217,6 +217,9 @@ function FileView({ path }: { path: string }) {
     <div>
       <div className="page-actions">
         <h1 className="page-title" style={{ marginRight: 'auto' }}>
+          {pageNumbers.get(path) && (
+            <span className="section-number">{pageNumbers.get(path)}</span>
+          )}
           {title}
         </h1>
         {me && (
@@ -391,7 +394,7 @@ function RecentChanges() {
 }
 
 function DirectoryView({ dir }: { dir: string }) {
-  const { files, settings, me } = useWiki()
+  const { files, settings, me, pageNumbers } = useWiki()
   const router = useRouter()
   const indexPath = dir ? `${dir}/index.md` : 'index.md'
   const hasIndex = (files || []).some((f) => f.path === indexPath)
@@ -433,6 +436,9 @@ function DirectoryView({ dir }: { dir: string }) {
     <div>
       <div className="page-actions">
         <h1 className="page-title" style={{ marginRight: 'auto' }}>
+          {pageNumbers.get(dir) && (
+            <span className="section-number">{pageNumbers.get(dir)}</span>
+          )}
           {name}
         </h1>
         {me && hasIndex && (

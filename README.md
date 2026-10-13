@@ -13,6 +13,9 @@ Documentation: [commonplace.wiki](https://www.commonplace.wiki) (itself a Common
 - **Just a frontend**: Commonplace is a stateless frontend. Everything is persisted in your Git repository.
 - **GitHub and GitLab**: Works with repositories on github.com, gitlab.com, or a self-hosted GitLab. The provider's login and permission model controls who has read and write access to the wiki. Support for public and private repos.
 - **Open Knowledge Format**: Google's universal format to collect knowledge and relationships.
+- **Section numbering**: Pages and folders get hierarchical numbers (1, 1.1, 1.1.2) that follow the sidebar order automatically.
+- **Page hierarchy**: Move pages into and out of folders from the sidebar with indent/outdent controls; links and ordering follow the move.
+- **Search**: Full-text search with a scope toggle between the current page and its subpages, or the whole wiki (Ctrl/Cmd+K).
 - **Markdown Editor**: A nice editor with just the right feature set. Good support for code snippets, drag & drop, screenshots and rich formatting.
 - **Knowledge Graph**: An interactive graph of all pages, connected by the links between them and the folder structure.
 - **AI friendly**: The MCP server `/api/mcp` lets AI agents search, read, and write wiki pages and relationships to serve as the business knowledge for your agents. See the [MCP docs](https://www.commonplace.wiki/mcp.md). Or just point your agent to the Git repo.
